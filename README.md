@@ -30,7 +30,7 @@ Tray-first desktop app that keeps a Cloudflare AAAA record synced with your curr
   - App starts hidden by default
   - Closing main window keeps backend + tray alive
 - Local homepage system:
-  - Embedded HTTP server (`/homepage.html`)
+  - Embedded HTTP server (`/index.html`)
   - Service manager (add/edit/delete service cards)
   - Per-service online/offline check by local port probing
   - Share URL copy support
@@ -113,8 +113,8 @@ pnpm lint
 
 Embedded server routes:
 
-- `/` -> redirect to `/homepage.html`
-- `/homepage.html`
+- `/` -> redirect to `/index.html`
+- `/index.html`
 - `/assets/*`
 - `/api/homepage/snapshot`
 
@@ -143,6 +143,6 @@ Note: the outbound IPv4 above is only used for local homepage/share URL display 
 
 ## Project Structure
 
-- `src/`: React UI (`index.html` main UI + `homepage.html` public homepage)
+- `src/`: React UI (`index.html` main UI + `homepage.html` local-homepage entry source)
 - `src-tauri/src/`: Rust backend (DDNS, tray, network watch, local homepage server)
 - `src-tauri/tauri.conf.json`: Tauri app config

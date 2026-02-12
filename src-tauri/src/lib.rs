@@ -87,7 +87,7 @@ impl AppState {
       local_homepage: LocalHomepageRuntime {
         running: self.homepage_running.load(Ordering::SeqCst),
         web_port,
-        web_url: format!("http://{}:{}/homepage.html", preferred_host, web_port),
+        web_url: format!("http://{}:{}/index.html", preferred_host, web_port),
         preferred_host,
         services: service_statuses,
       },
@@ -552,7 +552,7 @@ struct HomepageApiSnapshot {
 
 // Axum docs ("Routing" and "Handlers"): map root path to an HTTP redirect target.
 async fn homepage_redirect() -> Redirect {
-  Redirect::temporary("/homepage.html")
+  Redirect::temporary("/index.html")
 }
 
 // Axum docs ("extract::State"): shared server state is injected into handlers.
@@ -578,7 +578,7 @@ async fn homepage_api_snapshot(State(server): State<LocalHomepageServerState>) -
     push_domain,
     preferred_host: preferred_host.clone(),
     web_port,
-    web_url: format!("http://{}:{}/homepage.html", preferred_host, web_port),
+    web_url: format!("http://{}:{}/index.html", preferred_host, web_port),
     services,
   })
 }
@@ -751,7 +751,7 @@ fn spawn_local_homepage_server(app: AppHandle, state: SharedState) {
 
     let router = Router::new()
       .route("/", get(homepage_redirect))
-      .route("/homepage.html", get(homepage_html))
+      .route("/index.html", get(homepage_html))
       .route("/favicon.ico", get(homepage_favicon))
       .route("/assets/{*path}", get(homepage_assets))
       .route("/api/homepage/snapshot", get(homepage_api_snapshot))

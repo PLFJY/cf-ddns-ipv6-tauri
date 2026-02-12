@@ -28,7 +28,7 @@
   - 默认启动隐藏主窗口
   - 关闭主窗口后后台与托盘继续运行
 - 本机主页系统：
-  - 内置 HTTP 服务（`/homepage.html`）
+  - 内置 HTTP 服务（`/index.html`）
   - 服务管理（添加/编辑/删除服务卡片）
   - 按端口实时检测服务在线状态
   - 支持复制分享地址
@@ -111,8 +111,8 @@ pnpm lint
 
 内置服务路由：
 
-- `/` -> 重定向到 `/homepage.html`
-- `/homepage.html`
+- `/` -> 重定向到 `/index.html`
+- `/index.html`
 - `/assets/*`
 - `/api/homepage/snapshot`
 
@@ -141,6 +141,6 @@ pnpm lint
 
 ## 项目结构
 
-- `src/`：React 界面（`index.html` 主界面 + `homepage.html` 对外主页）
+- `src/`：React 界面（`index.html` 主界面 + `homepage.html` 本机主页入口源码）
 - `src-tauri/src/`：Rust 后端（DDNS、托盘、网络监听、本机主页服务）
 - `src-tauri/tauri.conf.json`：Tauri 应用配置
