@@ -1,4 +1,4 @@
-import { Badge, Button, Card, FluentProvider, Spinner, Text, Title2, makeStyles, webDarkTheme, webLightTheme } from "@fluentui/react-components";
+import { Badge, Button, Card, FluentProvider, Select, Spinner, Text, Title2, makeStyles, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import { useEffect, useMemo, useState } from "react";
 import { FluentIcon } from "./components/FluentIcon";
 
@@ -15,6 +15,7 @@ interface ServiceRuntimeModel {
 
 interface HomepageApiSnapshot {
   pushDomain: string | null;
+  languageMode: "system" | "zh-CN" | "en";
   preferredHost: string;
   webPort: number;
   webUrl: string;
@@ -37,6 +38,16 @@ const useStyles = makeStyles({
   statusCard: {
     display: "grid",
     gap: "8px"
+  },
+  statusRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    flexWrap: "wrap"
+  },
+  themeSelect: {
+    minWidth: "160px"
   },
   grid: {
     display: "grid",
@@ -67,6 +78,16 @@ function detectLocale(): "en" | "zh-CN" {
   return value.toLowerCase().startsWith("zh") ? "zh-CN" : "en";
 }
 
+function resolveLocale(mode: "system" | "zh-CN" | "en" | undefined): "en" | "zh-CN" {
+  if (mode === "zh-CN") {
+    return "zh-CN";
+  }
+  if (mode === "en") {
+    return "en";
+  }
+  return detectLocale();
+}
+
 const WEB_STRINGS = {
   en: {
     title: "Local Host Homepage",
@@ -74,11 +95,17 @@ const WEB_STRINGS = {
     host: "Host",
     domain: "Domain",
     status: "Status",
+    theme: "Theme",
+    themeSystem: "Follow system",
+    themeLight: "Light",
+    themeDark: "Dark",
     online: "Online",
     offline: "Offline",
     loading: "Loading homepage data...",
     copy: "Copy address",
     copied: "Copied",
+    homepageCardName: "Local Homepage",
+    homepageCardDescription: "Built-in local homepage entry",
     noServices: "No services configured yet."
   },
   "zh-CN": {
@@ -87,11 +114,17 @@ const WEB_STRINGS = {
     host: "主机地址",
     domain: "域名",
     status: "状态",
+    theme: "主题",
+    themeSystem: "跟随系统",
+    themeLight: "浅色",
+    themeDark: "深色",
     online: "在线",
     offline: "离线",
     loading: "正在加载主页数据...",
     copy: "复制地址",
     copied: "已复制",
+    homepageCardName: "本机主页",
+    homepageCardDescription: "内置本机主页入口",
     noServices: "暂无已配置服务。"
   }
 } as const;
@@ -99,17 +132,28 @@ const WEB_STRINGS = {
 export default function HomepageApp() {
   const styles = useStyles();
   const [snapshot, setSnapshot] = useState<HomepageApiSnapshot | null>(null);
-  const [isDark, setIsDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [prefersDark, setPrefersDark] = useState(() => window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const [themeMode, setThemeMode] = useState<"system" | "light" | "dark">(() => {
+    const value = window.localStorage.getItem("homepage_theme_mode");
+    if (value === "light" || value === "dark" || value === "system") {
+      return value;
+    }
+    return "system";
+  });
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const locale = detectLocale();
+  const locale = resolveLocale(snapshot?.languageMode);
   const strings = WEB_STRINGS[locale];
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (event: MediaQueryListEvent) => setIsDark(event.matches);
+    const handler = (event: MediaQueryListEvent) => setPrefersDark(event.matches);
     media.addEventListener("change", handler);
     return () => media.removeEventListener("change", handler);
   }, []);
+
+  useEffect(() => {
+    window.localStorage.setItem("homepage_theme_mode", themeMode);
+  }, [themeMode]);
 
   useEffect(() => {
     let timer: number | null = null;
@@ -131,7 +175,27 @@ export default function HomepageApp() {
     };
   }, []);
 
-  const theme = useMemo(() => (isDark ? webDarkTheme : webLightTheme), [isDark]);
+  const theme = useMemo(() => {
+    const effectiveDark =
+      themeMode === "dark" || (themeMode === "system" && prefersDark);
+    return effectiveDark ? webDarkTheme : webLightTheme;
+  }, [prefersDark, themeMode]);
+  const displayServices = useMemo(() => {
+    if (!snapshot) {
+      return [];
+    }
+    const homepageCard: ServiceRuntimeModel = {
+      id: "__local_homepage",
+      name: strings.homepageCardName,
+      port: snapshot.webPort,
+      icon: "fluent:globe-24-regular",
+      description: strings.homepageCardDescription,
+      presetType: "HTTP",
+      isOnline: true,
+      shareUrl: snapshot.webUrl
+    };
+    return [homepageCard, ...snapshot.services];
+  }, [snapshot, strings.homepageCardDescription, strings.homepageCardName]);
 
   async function copyAddress(id: string, text: string) {
     try {
@@ -146,7 +210,7 @@ export default function HomepageApp() {
   if (!snapshot) {
     return (
       <FluentProvider theme={theme}>
-        <div className={styles.page}>
+        <div className={`${styles.page} homepage-theme-shell`}>
           <div className={styles.shell}>
             <Spinner label={strings.loading} />
           </div>
@@ -157,17 +221,28 @@ export default function HomepageApp() {
 
   return (
     <FluentProvider theme={theme}>
-      <div className={styles.page}>
+      <div className={`${styles.page} homepage-theme-shell`}>
         <div className={styles.shell}>
           <Card className={styles.statusCard}>
-            <Title2>{strings.title}</Title2>
+            <div className={styles.statusRow}>
+              <Title2>{strings.title}</Title2>
+              <Select
+                className={styles.themeSelect}
+                value={themeMode}
+                onChange={(_, data) => setThemeMode(data.value as "system" | "light" | "dark")}
+              >
+                <option value="system">{strings.themeSystem}</option>
+                <option value="light">{strings.themeLight}</option>
+                <option value="dark">{strings.themeDark}</option>
+              </Select>
+            </div>
             <Text>{strings.subtitle}</Text>
             <Text>{strings.host}: <strong>{snapshot.preferredHost}</strong></Text>
             <Text>{strings.domain}: <strong>{snapshot.pushDomain ?? "-"}</strong></Text>
           </Card>
 
           <div className={styles.grid}>
-            {snapshot.services.map((service) => (
+            {displayServices.map((service) => (
               <Card
                 key={service.id}
                 className={styles.serviceCard}
@@ -193,7 +268,7 @@ export default function HomepageApp() {
                 </Button>
               </Card>
             ))}
-            {snapshot.services.length === 0 && (
+            {displayServices.length === 0 && (
               <Card>
                 <Text>{strings.noServices}</Text>
               </Card>

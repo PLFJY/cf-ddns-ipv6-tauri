@@ -25,7 +25,7 @@ use axum::{
 use chrono::Utc;
 use models::{
   AppConfig, AppSnapshot, InterfaceInfo, LocalHomepageRuntime, LookupRecordIdRequest,
-  SaveSettingsRequest, ServiceModel, ServiceRuntimeModel, SyncStatus, SyncStatusKind, ThemeMode,
+  SaveSettingsRequest, ServiceModel, ServiceRuntimeModel, SyncStatus, SyncStatusKind, ThemeMode, LanguageMode,
 };
 use parking_lot::Mutex;
 use secure_store::SecureTokenStore;
@@ -544,6 +544,7 @@ fn emit_network_changed(app: &AppHandle) {
 #[serde(rename_all = "camelCase")]
 struct HomepageApiSnapshot {
   push_domain: Option<String>,
+  language_mode: LanguageMode,
   preferred_host: String,
   web_port: u16,
   web_url: String,
@@ -576,6 +577,7 @@ async fn homepage_api_snapshot(State(server): State<LocalHomepageServerState>) -
 
   Json(HomepageApiSnapshot {
     push_domain,
+    language_mode: config.settings.language_mode,
     preferred_host: preferred_host.clone(),
     web_port,
     web_url: format!("http://{}:{}/index.html", preferred_host, web_port),

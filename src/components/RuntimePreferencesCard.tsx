@@ -1,4 +1,5 @@
-import { Card, Field, Select, Title3 } from "@fluentui/react-components";
+import { Card, Field, Input, Select, Title3 } from "@fluentui/react-components";
+import { useEffect, useState } from "react";
 import type { UiStrings } from "../i18n";
 import type { AppSettings, LanguageMode } from "../types";
 import { FluentIcon } from "./FluentIcon";
@@ -12,6 +13,29 @@ interface RuntimePreferencesCardProps {
 
 export function RuntimePreferencesCard(props: RuntimePreferencesCardProps) {
   const { draft, updateDraft, panelClassName, strings } = props;
+  const [portInput, setPortInput] = useState(String(draft.localHomepage.webPort));
+
+  useEffect(() => {
+    setPortInput(String(draft.localHomepage.webPort));
+  }, [draft.localHomepage.webPort]);
+
+  function commitPort(value: string) {
+    const parsed = Number.parseInt(value.trim(), 10);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+      return false;
+    }
+    if (parsed === draft.localHomepage.webPort) {
+      return true;
+    }
+    updateDraft((prev) => ({
+      ...prev,
+      localHomepage: {
+        ...prev.localHomepage,
+        webPort: parsed
+      }
+    }));
+    return true;
+  }
 
   return (
     <Card className={panelClassName}>
@@ -39,6 +63,21 @@ export function RuntimePreferencesCard(props: RuntimePreferencesCardProps) {
           <option value="enabled">{strings.enabled}</option>
           <option value="disabled">{strings.disabled}</option>
         </Select>
+      </Field>
+      <Field label={strings.localHomepagePortLabel} hint={strings.localHomepagePortHint}>
+        <Input
+          type="number"
+          value={portInput}
+          onChange={(_, data) => {
+            setPortInput(data.value);
+            void commitPort(data.value);
+          }}
+          onBlur={() => {
+            if (!commitPort(portInput)) {
+              setPortInput(String(draft.localHomepage.webPort));
+            }
+          }}
+        />
       </Field>
       <Field label={strings.themeLabel}>
         <Select

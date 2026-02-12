@@ -388,6 +388,34 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
       </div>
       {copyMessage && <Text>{copyMessage}</Text>}
       <div className={styles.grid}>
+        <Card className={`${styles.card} service-manager-card`}>
+          <div className={styles.rowBetween}>
+            <div className={styles.row}>
+              <FluentIcon icon="fluent:globe-24-regular" width={20} />
+              <Text weight="semibold">{strings.homepageCardName}</Text>
+              <Badge appearance="filled" color="informative">{strings.pinnedLabel}</Badge>
+            </div>
+          </div>
+          <Text>{strings.portLabel}: <strong>{snapshot.localHomepage.webPort}</strong></Text>
+          <div className={styles.row}>
+            <Text>{strings.statusLabel}:</Text>
+            <Badge color={snapshot.localHomepage.running ? "success" : "danger"}>
+              {snapshot.localHomepage.running ? strings.online : strings.offline}
+            </Badge>
+          </div>
+          <Text>{strings.homepageCardDescription}</Text>
+          <div className={styles.actions}>
+            <Button
+              className="service-manager-button"
+              appearance="subtle"
+              icon={<FluentIcon icon="fluent:copy-24-regular" width={16} />}
+              onClick={() => copyShareAddress(snapshot.localHomepage.webUrl)}
+            >
+              {strings.copyShare}
+            </Button>
+          </div>
+        </Card>
+
         {draft.localHomepage.services.map((service) => {
           const runtime = statusById.get(service.id);
           const shareUrl = runtime?.shareUrl ?? `${snapshot.localHomepage.preferredHost}:${service.port}`;

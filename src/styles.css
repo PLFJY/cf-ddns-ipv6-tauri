@@ -75,3 +75,12 @@ body {
     transform: translateY(0) scale(1);
   }
 }
+
+.homepage-theme-shell,
+.homepage-theme-shell * {
+  transition:
+    background-color 220ms ease,
+    color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}

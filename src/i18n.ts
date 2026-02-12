@@ -20,6 +20,8 @@ export interface UiStrings {
     title: string;
     autoPushLabel: string;
     launchOnStartupLabel: string;
+    localHomepagePortLabel: string;
+    localHomepagePortHint: string;
     enabled: string;
     disabled: string;
     themeLabel: string;
@@ -92,6 +94,9 @@ export interface UiStrings {
   };
   serviceManager: {
     title: string;
+    pinnedLabel: string;
+    homepageCardName: string;
+    homepageCardDescription: string;
     addService: string;
     addDialogTitle: string;
     editDialogTitle: string;
@@ -139,6 +144,8 @@ const EN_STRINGS: UiStrings = {
     title: "Runtime Preferences",
     autoPushLabel: "Auto push updates",
     launchOnStartupLabel: "Launch on startup",
+    localHomepagePortLabel: "Local homepage port",
+    localHomepagePortHint: "Valid range: 1-65535",
     enabled: "Enabled",
     disabled: "Disabled",
     themeLabel: "Theme",
@@ -211,6 +218,9 @@ const EN_STRINGS: UiStrings = {
   },
   serviceManager: {
     title: "Service Manager",
+    pinnedLabel: "Pinned",
+    homepageCardName: "Local Homepage",
+    homepageCardDescription: "Built-in local homepage entry",
     addService: "Add service",
     addDialogTitle: "Add service",
     editDialogTitle: "Edit service",
@@ -258,6 +268,8 @@ const ZH_CN_STRINGS: UiStrings = {
     title: "运行偏好",
     autoPushLabel: "自动推送更新",
     launchOnStartupLabel: "开机启动",
+    localHomepagePortLabel: "本机主页端口",
+    localHomepagePortHint: "有效范围：1-65535",
     enabled: "启用",
     disabled: "禁用",
     themeLabel: "主题",
@@ -330,6 +342,9 @@ const ZH_CN_STRINGS: UiStrings = {
   },
   serviceManager: {
     title: "服务管理",
+    pinnedLabel: "固定",
+    homepageCardName: "本机主页",
+    homepageCardDescription: "内置本机主页入口",
     addService: "添加服务",
     addDialogTitle: "添加服务",
     editDialogTitle: "编辑服务",
