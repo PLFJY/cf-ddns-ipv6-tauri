@@ -8,7 +8,6 @@ mod secure_store;
 use std::{
   net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream},
   path::PathBuf,
-  process::Command,
   sync::{
     atomic::{AtomicBool, AtomicU16, Ordering},
     Arc,
@@ -42,9 +41,8 @@ use tokio::time::Duration;
 const SNAPSHOT_EVENT: &str = "ddns://snapshot";
 const NETWORK_CHANGED_EVENT: &str = "ddns://network-changed";
 const AUTOSTART_ARG: &str = "--autostart";
-const LOCAL_HOMEPAGE_FALLBACK_PORT: u16 = 8787;
+const LOCAL_HOMEPAGE_FALLBACK_PORT: u16 = 8081;
 const HOMEPAGE_FALLBACK_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Local Host Homepage</title></head><body style="font-family:Segoe UI,Arial,sans-serif;padding:24px"><h2>Local Host Homepage</h2><p>Homepage assets are not available yet.</p><p>Build frontend assets with <code>pnpm build</code> and restart the app.</p></body></html>"#;
-const WINDOWS_FIREWALL_RULE_NAME: &str = "Cloudflare IPv6 DDNS Local Homepage";
 
 #[derive(Clone)]
 struct SharedState(Arc<AppState>);
@@ -747,10 +745,6 @@ fn spawn_local_homepage_server(app: AppHandle, state: SharedState) {
       }
     };
 
-    if let Err(error) = ensure_firewall_inbound_rule(bound_port).await {
-      eprintln!("failed to configure firewall inbound rule: {error}");
-    }
-
     state_for_server.0.homepage_running.store(true, Ordering::SeqCst);
     state_for_server.0.homepage_bound_port.store(bound_port, Ordering::SeqCst);
     emit_snapshot(&app, &state_for_server.0);
@@ -808,123 +802,6 @@ async fn wait_for_shutdown(shutting_down: Arc<AtomicBool>) {
   while !shutting_down.load(Ordering::SeqCst) {
     tokio::time::sleep(Duration::from_millis(200)).await;
   }
-}
-
-#[cfg(target_os = "windows")]
-async fn ensure_firewall_inbound_rule(port: u16) -> Result<(), String> {
-  fn local_port_matches(candidate: &str, target: u16) -> bool {
-    let value = candidate.trim().to_ascii_lowercase();
-    if value.is_empty() {
-      return false;
-    }
-    if value == "any" {
-      return true;
-    }
-    for part in value.split(',') {
-      let token = part.trim();
-      if token.is_empty() {
-        continue;
-      }
-      if let Some((start, end)) = token.split_once('-') {
-        let Ok(start_port) = start.trim().parse::<u16>() else {
-          continue;
-        };
-        let Ok(end_port) = end.trim().parse::<u16>() else {
-          continue;
-        };
-        if start_port <= target && target <= end_port {
-          return true;
-        }
-        continue;
-      }
-      if let Ok(single_port) = token.parse::<u16>() {
-        if single_port == target {
-          return true;
-        }
-      }
-    }
-    false
-  }
-
-  // Query existing rule ports first; only elevate when update is required.
-  tokio::task::spawn_blocking(move || {
-    let query_script = format!(
-      "$ports = Get-NetFirewallRule -DisplayName '{}' -ErrorAction SilentlyContinue | Get-NetFirewallPortFilter | Where-Object {{ $_.Protocol -eq 'TCP' -or $_.Protocol -eq 6 }} | Select-Object -ExpandProperty LocalPort; if ($null -eq $ports) {{ exit 3 }}; $ports | ForEach-Object {{ $_ }}",
-      WINDOWS_FIREWALL_RULE_NAME.replace('\'', "''")
-    );
-    let query_output = Command::new("powershell")
-      .args([
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        &query_script,
-      ])
-      .output()
-      .map_err(|error| format!("failed to query existing firewall rule ports: {error}"))?;
-
-    let needs_update = if query_output.status.success() {
-      let stdout = String::from_utf8_lossy(&query_output.stdout);
-      !stdout.lines().any(|line| local_port_matches(line, port))
-    } else {
-      // Exit code 3 means no matching rule exists.
-      query_output.status.code() != Some(3)
-    };
-
-    if !needs_update {
-      return Ok(());
-    }
-
-    let delete_args = format!(
-      "advfirewall firewall delete rule name=\"{}\"",
-      WINDOWS_FIREWALL_RULE_NAME
-    );
-    let add_args = format!(
-      "advfirewall firewall add rule name=\"{}\" dir=in action=allow protocol=TCP localport={} profile=any",
-      WINDOWS_FIREWALL_RULE_NAME, port
-    );
-    let ps_script = format!(
-      "$d = Start-Process -FilePath 'netsh.exe' -ArgumentList '{}' -Verb RunAs -Wait -PassThru; $a = Start-Process -FilePath 'netsh.exe' -ArgumentList '{}' -Verb RunAs -Wait -PassThru; exit $a.ExitCode",
-      delete_args.replace('\'', "''"),
-      add_args.replace('\'', "''")
-    );
-    let output = Command::new("powershell")
-      .args([
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-Command",
-        &ps_script,
-      ])
-      .output()
-      .map_err(|error| format!("failed to run elevated firewall update script: {error}"))?;
-
-    if output.status.success() {
-      return Ok(());
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-    let merged = format!("{stdout} {stderr}").to_lowercase();
-    if merged.contains("canceled by the user") || merged.contains("cancelled by the user") {
-      return Err("firewall rule update was cancelled in UAC prompt".to_string());
-    }
-    Err(format!(
-      "elevated firewall update script exited with {}. stdout: {} stderr: {}",
-      output.status,
-      stdout,
-      stderr
-    ))
-  })
-  .await
-  .map_err(|error| format!("firewall worker task failed: {error}"))?
-}
-
-#[cfg(not(target_os = "windows"))]
-async fn ensure_firewall_inbound_rule(_port: u16) -> Result<(), String> {
-  Ok(())
 }
 
 fn apply_autostart(app: &AppHandle, enabled: bool) -> Result<(), String> {

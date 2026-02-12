@@ -36,6 +36,6 @@ pub fn save_config(path: &Path, config: &AppConfig) -> Result<()> {
 
 pub fn normalize(config: &mut AppConfig) {
   if config.settings.local_homepage.web_port == 0 {
-    config.settings.local_homepage.web_port = 80;
+    config.settings.local_homepage.web_port = 8080;
   }
 }

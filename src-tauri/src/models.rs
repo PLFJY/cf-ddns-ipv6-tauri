@@ -22,7 +22,7 @@ fn default_language_mode() -> LanguageMode {
 }
 
 fn default_local_homepage_port() -> u16 {
-  80
+  8080
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

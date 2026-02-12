@@ -5,7 +5,10 @@ Tray-first desktop app that keeps a Cloudflare AAAA record synced with your curr
 如需查看中文文档，请点击：[README_zh.md](./README_zh.md)
 
 > [!IMPORTANT]
-> 警告：本仓库代码主要由 AI 生成，请在使用前自行完成代码审查、安全评估与功能验证。
+> Warning: this repository is primarily AI-generated. Please perform your own code review, security assessment, and functional verification before use.
+
+> [!IMPORTANT]
+> Platform support statement: the author only tests and guarantees normal usability on Windows. macOS and Linux availability is not guaranteed.
 
 ## Features
 
@@ -115,8 +118,8 @@ Embedded server routes:
 
 Port behavior:
 
-- Config default: `80`
-- If bind fails, fallback to `8787`
+- Config default: `8080`
+- If bind fails, fallback to `8081`
 
 Preferred share host selection order:
 
@@ -124,8 +127,6 @@ Preferred share host selection order:
 2. Outbound IPv4
 3. Current IPv6
 4. `127.0.0.1`
-
-On Windows, the app attempts to add/update an inbound firewall rule for the active homepage TCP port.
 
 ## Storage and Security
 
