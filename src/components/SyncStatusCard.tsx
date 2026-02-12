@@ -55,9 +55,17 @@ export function SyncStatusCard(props: SyncStatusCardProps) {
         <Text>{snapshot.cache.lastSyncStatus.message ?? strings.noMessage}</Text>
       </div>
       <Button
+        className="sync-push-button"
         appearance="secondary"
         onClick={onManualPush}
         disabled={isPushing}
+        icon={
+          <FluentIcon
+            icon={isPushing ? "fluent:arrow-sync-24-regular" : "fluent:arrow-upload-24-regular"}
+            width={16}
+            style={isPushing ? { animation: "lookup-spin 0.9s linear infinite" } : undefined}
+          />
+        }
       >
         {isPushing ? strings.updating : strings.pushNow}
       </Button>

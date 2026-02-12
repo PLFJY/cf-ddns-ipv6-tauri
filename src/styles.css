@@ -84,3 +84,97 @@ body {
     border-color 220ms ease,
     box-shadow 220ms ease;
 }
+
+.app-theme-shell,
+.app-theme-shell * {
+  transition:
+    background-color 220ms ease,
+    color 220ms ease,
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.app-runtime-placeholder {
+  background: linear-gradient(90deg, rgba(128, 128, 128, 0.14) 0%, rgba(128, 128, 128, 0.28) 50%, rgba(128, 128, 128, 0.14) 100%);
+  background-size: 220% 100%;
+  animation: app-runtime-shimmer 1.2s linear infinite;
+}
+
+@keyframes app-runtime-shimmer {
+  from {
+    background-position: 220% 0;
+  }
+  to {
+    background-position: -20% 0;
+  }
+}
+
+@keyframes lookup-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.cloudflare-save-token-button {
+  transition: transform 140ms ease, box-shadow 180ms ease;
+  animation: cloudflare-save-pulse 1.8s ease-in-out infinite;
+}
+
+.cloudflare-save-config-button {
+  transition: transform 140ms ease, box-shadow 180ms ease;
+  animation: cloudflare-save-pulse 1.8s ease-in-out infinite;
+}
+
+.cloudflare-save-token-button:hover {
+  transform: translateY(-1px);
+}
+
+.cloudflare-save-config-button:hover {
+  transform: translateY(-1px);
+}
+
+.cloudflare-save-token-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.cloudflare-save-config-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.cloudflare-save-token-button:disabled {
+  animation: none;
+}
+
+.cloudflare-save-config-button:disabled {
+  animation: none;
+}
+
+@keyframes cloudflare-save-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 rgba(0, 120, 212, 0);
+  }
+  50% {
+    box-shadow: 0 8px 18px rgba(0, 120, 212, 0.28);
+  }
+}
+
+.sync-push-button {
+  transition: transform 140ms ease, box-shadow 180ms ease;
+  animation: cloudflare-save-pulse 1.8s ease-in-out infinite;
+}
+
+.sync-push-button:hover {
+  transform: translateY(-1px);
+}
+
+.sync-push-button:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.sync-push-button:disabled {
+  animation: none;
+}

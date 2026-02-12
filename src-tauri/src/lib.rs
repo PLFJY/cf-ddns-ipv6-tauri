@@ -63,11 +63,14 @@ struct AppState {
   homepage_bound_port: Arc<AtomicU16>,
   homepage_dist_dir: PathBuf,
   app_icon_path: Option<PathBuf>,
+  has_token_cached: Arc<AtomicBool>,
+  bootstrapping: Arc<AtomicBool>,
 }
 
 impl AppState {
   fn snapshot(&self) -> AppSnapshot {
-    let has_token = self.token_store.get_token().ok().flatten().is_some();
+    let bootstrapping = self.bootstrapping.load(Ordering::SeqCst);
+    let has_token = self.has_token_cached.load(Ordering::SeqCst);
     let config = self.config.lock().clone();
     let configured_port = config.settings.local_homepage.web_port;
     let web_port = if self.homepage_running.load(Ordering::SeqCst) {
@@ -75,12 +78,29 @@ impl AppState {
     } else {
       configured_port
     };
-    let preferred_host = preferred_share_host(&config, self.current_ipv6.lock().clone());
-    let service_statuses = build_service_runtime_models(&config.settings.local_homepage.services, &preferred_host);
+    let current_ipv6 = self.current_ipv6.lock().clone();
+    let preferred_host = if bootstrapping {
+      let domain = config.settings.cloudflare.domain.trim();
+      if !domain.is_empty() {
+        domain.to_string()
+      } else if let Some(ipv6) = current_ipv6.clone() {
+        ipv6
+      } else {
+        "127.0.0.1".to_string()
+      }
+    } else {
+      preferred_share_host(&config, current_ipv6.clone())
+    };
+    let service_statuses = if bootstrapping {
+      build_service_runtime_models_without_probe(&config.settings.local_homepage.services, &preferred_host)
+    } else {
+      build_service_runtime_models(&config.settings.local_homepage.services, &preferred_host)
+    };
     AppSnapshot {
+      bootstrapping,
       settings: config.settings,
       cache: config.cache,
-      current_ipv6: self.current_ipv6.lock().clone(),
+      current_ipv6,
       interfaces: self.interfaces.lock().clone(),
       has_token,
       linux_theme_hint: self.linux_theme_hint,
@@ -158,6 +178,47 @@ fn build_service_runtime_models(services: &[ServiceModel], preferred_host: &str)
     .collect()
 }
 
+fn build_service_runtime_models_without_probe(services: &[ServiceModel], preferred_host: &str) -> Vec<ServiceRuntimeModel> {
+  services
+    .iter()
+    .map(|service| ServiceRuntimeModel {
+      id: service.id.clone(),
+      name: service.name.clone(),
+      port: service.port,
+      icon: service.icon.clone(),
+      description: service.description.clone(),
+      preset_type: service.preset_type.clone(),
+      is_online: false,
+      share_url: build_share_url(service, preferred_host),
+    })
+    .collect()
+}
+
+fn spawn_startup_refresh_task(app: AppHandle, state: SharedState) {
+  tauri::async_runtime::spawn(async move {
+    let selected_interface = state.0.config.lock().settings.selected_interface.clone();
+    let interface_result = tokio::task::spawn_blocking(move || {
+      network::collect_interfaces_and_ipv6(selected_interface.as_deref())
+    })
+    .await;
+    if let Ok((interfaces, current_ipv6)) = interface_result {
+      *state.0.interfaces.lock() = interfaces;
+      *state.0.current_ipv6.lock() = current_ipv6;
+    }
+
+    let token_state = state.clone();
+    let has_token = tokio::task::spawn_blocking(move || {
+      token_state.0.token_store.get_token().ok().flatten().is_some()
+    })
+    .await
+    .unwrap_or(false);
+    state.0.has_token_cached.store(has_token, Ordering::SeqCst);
+    state.0.bootstrapping.store(false, Ordering::SeqCst);
+    refresh_tray_menu(&app, &state.0);
+    emit_snapshot(&app, &state.0);
+  });
+}
+
 #[tauri::command]
 fn get_snapshot(state: tauri::State<'_, SharedState>) -> AppSnapshot {
   state.inner().0.snapshot()
@@ -176,6 +237,7 @@ async fn save_settings(
       .token_store
       .clear_token()
       .map_err(|error| format!("failed to clear API token: {error}"))?;
+    state.inner().0.has_token_cached.store(false, Ordering::SeqCst);
   }
   if let Some(token) = request.api_token.as_ref() {
     if !token.is_empty() {
@@ -185,6 +247,7 @@ async fn save_settings(
         .token_store
         .set_token(token)
         .map_err(|error| format!("failed to save API token securely: {error}"))?;
+      state.inner().0.has_token_cached.store(true, Ordering::SeqCst);
     }
   }
 
@@ -858,8 +921,6 @@ pub fn run() {
       loaded_config.settings.lightweight_mode = true;
       let _ = config::save_config(&config_path, &loaded_config);
 
-      let (interfaces, current_ipv6) =
-        network::collect_interfaces_and_ipv6(loaded_config.settings.selected_interface.as_deref());
       let notify = Arc::new(Notify::new());
       let platform_watcher = platform::start_network_watcher(notify.clone()).map_err(anyhow::Error::msg)?;
       let shutting_down = Arc::new(AtomicBool::new(false));
@@ -871,8 +932,8 @@ pub fn run() {
       let state = SharedState(Arc::new(AppState {
         config_path,
         config: Mutex::new(loaded_config.clone()),
-        interfaces: Mutex::new(interfaces),
-        current_ipv6: Mutex::new(current_ipv6),
+        interfaces: Mutex::new(Vec::new()),
+        current_ipv6: Mutex::new(None),
         linux_theme_hint: platform::detect_theme_hint(),
         token_store: SecureTokenStore::new("dev.plfjy.cloudflare-ipv6-ddns"),
         notify,
@@ -884,6 +945,8 @@ pub fn run() {
         homepage_bound_port,
         homepage_dist_dir,
         app_icon_path,
+        has_token_cached: Arc::new(AtomicBool::new(false)),
+        bootstrapping: Arc::new(AtomicBool::new(true)),
       }));
       app.manage(state.clone());
 
@@ -936,6 +999,7 @@ pub fn run() {
 
       emit_snapshot(app.handle(), &state.0);
       spawn_local_homepage_server(app.handle().clone(), state.clone());
+      spawn_startup_refresh_task(app.handle().clone(), state.clone());
       spawn_ip_change_worker(app.handle().clone(), state);
       Ok(())
     })

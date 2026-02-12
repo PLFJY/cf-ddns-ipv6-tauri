@@ -56,6 +56,7 @@ export interface InterfaceInfo {
 }
 
 export interface AppSnapshot {
+  bootstrapping: boolean;
   settings: AppSettings;
   cache: RuntimeCache;
   currentIpv6: string | null;

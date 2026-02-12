@@ -145,6 +145,10 @@ export default function HomepageApp() {
   const strings = WEB_STRINGS[locale];
 
   useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
+
+  useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = (event: MediaQueryListEvent) => setPrefersDark(event.matches);
     media.addEventListener("change", handler);
@@ -229,7 +233,12 @@ export default function HomepageApp() {
               <Select
                 className={styles.themeSelect}
                 value={themeMode}
-                onChange={(_, data) => setThemeMode(data.value as "system" | "light" | "dark")}
+                onChange={(event) => {
+                  const value = (event.target as HTMLSelectElement).value;
+                  if (value === "system" || value === "light" || value === "dark") {
+                    setThemeMode(value);
+                  }
+                }}
               >
                 <option value="system">{strings.themeSystem}</option>
                 <option value="light">{strings.themeLight}</option>

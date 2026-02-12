@@ -5,6 +5,7 @@ export type UiLocale = "en" | "zh-CN";
 export interface UiStrings {
   app: {
     loading: string;
+    fetchingRuntime: string;
     savingPreferences: string;
   };
   nav: {
@@ -75,8 +76,10 @@ export interface UiStrings {
     tokenMissingHint: string;
     replaceToken: string;
     clearToken: string;
-    save: string;
-    saving: string;
+    saveToken: string;
+    savingToken: string;
+    saveConfig: string;
+    savingConfig: string;
   };
   localHomepageHome: {
     title: string;
@@ -94,9 +97,6 @@ export interface UiStrings {
   };
   serviceManager: {
     title: string;
-    pinnedLabel: string;
-    homepageCardName: string;
-    homepageCardDescription: string;
     addService: string;
     addDialogTitle: string;
     editDialogTitle: string;
@@ -129,6 +129,7 @@ export interface UiStrings {
 const EN_STRINGS: UiStrings = {
   app: {
     loading: "Loading current DDNS state...",
+    fetchingRuntime: "Fetching runtime data...",
     savingPreferences: "Saving preferences..."
   },
   nav: {
@@ -199,8 +200,10 @@ const EN_STRINGS: UiStrings = {
     tokenMissingHint: "No token is stored yet.",
     replaceToken: "Replace token",
     clearToken: "Clear token",
-    save: "Save Cloudflare Settings",
-    saving: "Saving..."
+    saveToken: "Save Token",
+    savingToken: "Saving token...",
+    saveConfig: "Save Cloudflare Configuration",
+    savingConfig: "Saving Cloudflare configuration..."
   },
   localHomepageHome: {
     title: "Local Host Homepage",
@@ -218,9 +221,6 @@ const EN_STRINGS: UiStrings = {
   },
   serviceManager: {
     title: "Service Manager",
-    pinnedLabel: "Pinned",
-    homepageCardName: "Local Homepage",
-    homepageCardDescription: "Built-in local homepage entry",
     addService: "Add service",
     addDialogTitle: "Add service",
     editDialogTitle: "Edit service",
@@ -253,6 +253,7 @@ const EN_STRINGS: UiStrings = {
 const ZH_CN_STRINGS: UiStrings = {
   app: {
     loading: "正在加载 DDNS 状态...",
+    fetchingRuntime: "正在获取运行时数据...",
     savingPreferences: "正在保存偏好设置..."
   },
   nav: {
@@ -323,8 +324,10 @@ const ZH_CN_STRINGS: UiStrings = {
     tokenMissingHint: "尚未保存 token。",
     replaceToken: "替换 token",
     clearToken: "清除 token",
-    save: "保存 Cloudflare 设置",
-    saving: "保存中..."
+    saveToken: "保存 Token",
+    savingToken: "保存 Token 中...",
+    saveConfig: "保存 Cloudflare 配置",
+    savingConfig: "保存 Cloudflare 配置中..."
   },
   localHomepageHome: {
     title: "本机主页系统",
@@ -342,9 +345,6 @@ const ZH_CN_STRINGS: UiStrings = {
   },
   serviceManager: {
     title: "服务管理",
-    pinnedLabel: "固定",
-    homepageCardName: "本机主页",
-    homepageCardDescription: "内置本机主页入口",
     addService: "添加服务",
     addDialogTitle: "添加服务",
     editDialogTitle: "编辑服务",

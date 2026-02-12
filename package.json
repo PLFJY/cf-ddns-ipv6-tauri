@@ -5,10 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@10.2.1",
   "scripts": {
-    "web:dev": "vite",
-    "dev": "tauri dev",
+    "web:dev": "pnpm build && vite",
+    "dev": "pnpm build && tauri dev",
     "build": "vite build",
-    "tauri:build": "tauri build",
+    "tauri:build": "pnpm build && tauri build",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

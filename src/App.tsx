@@ -30,6 +30,11 @@ const useStyles = makeStyles({
     gap: "14px",
     gridTemplateColumns: "220px minmax(0, 1fr)"
   },
+  navRail: {
+    display: "grid",
+    gap: "10px",
+    alignContent: "start"
+  },
   contentMain: {
     display: "grid",
     gap: "14px",
@@ -47,11 +52,15 @@ const useStyles = makeStyles({
   twoCol: {
     display: "grid",
     gap: "14px",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))"
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    alignItems: "stretch"
   },
   panel: {
-    display: "grid",
-    gap: "12px"
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    justifyContent: "flex-start",
+    height: "100%"
   },
   row: {
     display: "flex",
@@ -64,6 +73,15 @@ const useStyles = makeStyles({
     gap: "8px",
     justifyContent: "flex-end",
     flexWrap: "wrap"
+  },
+  loadingCard: {
+    display: "grid",
+    gap: "12px",
+    padding: "12px"
+  },
+  loadingLine: {
+    height: "12px",
+    borderRadius: "6px"
   }
 });
 
@@ -118,7 +136,7 @@ export default function App() {
   const [clearToken, setClearToken] = useState(false);
   const [isReplacingToken, setIsReplacingToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isAutoSaving, setIsAutoSaving] = useState(false);
+  const [isSavingCloudflare, setIsSavingCloudflare] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [isLookingUpRecord, setIsLookingUpRecord] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,32 +218,17 @@ export default function App() {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  async function saveNonCloudflare(nextDraft: AppSettings, currentSnapshot: AppSnapshot) {
-    setIsAutoSaving(true);
+  async function saveNonCloudflare(nextDraft: AppSettings) {
     try {
       const result = await saveSettings({
-        settings: {
-          ...nextDraft,
-          // Cloudflare edits are saved only via the Cloudflare card save button.
-          cloudflare: { ...currentSnapshot.settings.cloudflare }
-        },
+        settings: nextDraft,
         apiToken: null,
         clearToken: false
       });
       setSnapshot(result);
-      setDraft((previous) =>
-        previous
-          ? {
-              ...result.settings,
-              cloudflare: previous.cloudflare,
-              localHomepage: nextDraft.localHomepage
-            }
-          : normalizeDraft(result)
-      );
+      setDraft(normalizeDraft(result));
     } catch (err) {
       setError(String(err));
-    } finally {
-      setIsAutoSaving(false);
     }
   }
 
@@ -235,14 +238,14 @@ export default function App() {
         return prev;
       }
       const next = updater(prev);
-      if (options?.autoSave && snapshot) {
-        void saveNonCloudflare(next, snapshot);
+      if (options?.autoSave) {
+        void saveNonCloudflare(next);
       }
       return next;
     });
   }
 
-  async function onSave() {
+  async function onSaveToken() {
     if (!draft) {
       return;
     }
@@ -263,6 +266,27 @@ export default function App() {
       setError(String(err));
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  async function onSaveCloudflareConfig() {
+    if (!draft) {
+      return;
+    }
+    setIsSavingCloudflare(true);
+    setError(null);
+    try {
+      const result = await saveSettings({
+        settings: draft,
+        apiToken: null,
+        clearToken: false
+      });
+      setSnapshot(result);
+      setDraft(normalizeDraft(result));
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setIsSavingCloudflare(false);
     }
   }
 
@@ -315,7 +339,7 @@ export default function App() {
   if (!snapshot || !draft) {
     return (
       <FluentProvider theme={effectiveDark ? webDarkTheme : webLightTheme}>
-        <div className={styles.page}>
+        <div className={`${styles.page} app-theme-shell`}>
           <div className={styles.shell}>
             {error && (
               <Card>
@@ -334,7 +358,7 @@ export default function App() {
       // Fluent UI docs: "Start developing" shows using FluentProvider + webLightTheme/webDarkTheme.
       theme={effectiveDark ? webDarkTheme : webLightTheme}
     >
-      <div className={styles.page}>
+      <div className={`${styles.page} app-theme-shell`}>
         <div className={styles.shell}>
           <DashboardHeader
             headerClassName={styles.header}
@@ -349,37 +373,40 @@ export default function App() {
           )}
 
           <div className={styles.contentShell}>
-            <NavigationView
-              selected={view}
-              onSelect={setView}
-              strings={strings.nav}
-            />
+            <div className={styles.navRail}>
+              <NavigationView
+                selected={view}
+                onSelect={setView}
+                strings={strings.nav}
+              />
+            </div>
 
             <div className={styles.contentMain}>
+              {snapshot.bootstrapping && (
+                <Card className={styles.loadingCard}>
+                  <Spinner label={strings.app.fetchingRuntime} />
+                  <div className={`${styles.loadingLine} app-runtime-placeholder`} />
+                  <div className={`${styles.loadingLine} app-runtime-placeholder`} />
+                  <div className={`${styles.loadingLine} app-runtime-placeholder`} />
+                </Card>
+              )}
+              {!snapshot.bootstrapping && (
               <div key={view} className="desktop-view-stage">
                 {view === "home" && (
                   <>
-                    <div className={styles.twoCol}>
-                      <LocalHomepageOverviewCard
-                        snapshot={snapshot}
-                        strings={strings.localHomepageHome}
-                        panelClassName={styles.panel}
-                        rowClassName={styles.row}
-                      />
-                      <SyncStatusCard
-                        snapshot={snapshot}
-                        isPushing={isPushing}
-                        onManualPush={onManualPush}
-                        panelClassName={styles.panel}
-                        rowClassName={styles.row}
-                        strings={strings.status}
-                      />
-                    </div>
-                    <RuntimePreferencesCard
-                      draft={draft}
-                      updateDraft={(updater) => updateDraft(updater, { autoSave: true })}
+                    <SyncStatusCard
+                      snapshot={snapshot}
+                      isPushing={isPushing}
+                      onManualPush={onManualPush}
                       panelClassName={styles.panel}
-                      strings={strings.runtime}
+                      rowClassName={styles.row}
+                      strings={strings.status}
+                    />
+                    <LocalHomepageOverviewCard
+                      snapshot={snapshot}
+                      strings={strings.localHomepageHome}
+                      panelClassName={styles.panel}
+                      rowClassName={styles.row}
                     />
                   </>
                 )}
@@ -420,12 +447,14 @@ export default function App() {
                       isReplacingToken={isReplacingToken}
                       isLookingUpRecord={isLookingUpRecord}
                       isSaving={isSaving}
+                      isSavingCloudflare={isSavingCloudflare}
                       updateDraft={(updater) => updateDraft(updater)}
                       onLookupRecordId={onLookupRecordId}
                       onTokenInputChange={onTokenInputChange}
                       onReplaceToken={() => setIsReplacingToken(true)}
                       onClearToken={onClearToken}
-                      onSave={onSave}
+                      onSave={onSaveToken}
+                      onSaveCloudflareConfig={onSaveCloudflareConfig}
                       panelClassName={styles.panel}
                       footerActionsClassName={styles.footerActions}
                       strings={strings.cloudflare}
@@ -442,12 +471,10 @@ export default function App() {
                   />
                 )}
               </div>
+              )}
             </div>
           </div>
 
-          {isAutoSaving && (
-            <Text>{strings.app.savingPreferences}</Text>
-          )}
         </div>
       </div>
     </FluentProvider>

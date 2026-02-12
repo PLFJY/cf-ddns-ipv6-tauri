@@ -17,7 +17,7 @@ import {
   Title3,
   makeStyles
 } from "@fluentui/react-components";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiStrings } from "../i18n";
 import { findPreset, SERVICE_PRESETS } from "../servicePresets";
 import type { AppSettings, AppSnapshot, ServiceModel, ServiceRuntimeModel } from "../types";
@@ -39,6 +39,20 @@ interface EditingModel {
   description: string;
   iconUrl: string;
 }
+
+interface DragState {
+  id: string;
+  offsetX: number;
+  offsetY: number;
+  mouseX: number;
+  mouseY: number;
+  width: number;
+  height: number;
+}
+
+type RenderItem =
+  | { type: "service"; service: ServiceModel }
+  | { type: "placeholder" };
 
 const useStyles = makeStyles({
   root: {
@@ -62,9 +76,23 @@ const useStyles = makeStyles({
     gap: "12px",
     gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))"
   },
+  dragItem: {
+    minWidth: 0
+  },
   card: {
     display: "grid",
-    gap: "10px"
+    gap: "10px",
+    height: "100%"
+  },
+  dragPlaceholder: {
+    border: "1px dashed rgba(0, 120, 212, 0.7)",
+    borderRadius: "8px",
+    background: "rgba(0, 120, 212, 0.08)"
+  },
+  dragGhost: {
+    position: "fixed",
+    zIndex: 3000,
+    pointerEvents: "none"
   },
   addCard: {
     display: "grid",
@@ -92,6 +120,9 @@ const useStyles = makeStyles({
     opacity: 0.75,
     cursor: "grab",
     userSelect: "none"
+  },
+  dragHandleActive: {
+    cursor: "grabbing"
   },
   actions: {
     display: "flex",
@@ -204,21 +235,6 @@ function createServiceId(): string {
   return `svc-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
 }
 
-function reorderServices(services: ServiceModel[], fromId: string, toId: string): ServiceModel[] {
-  if (fromId === toId) {
-    return services;
-  }
-  const fromIndex = services.findIndex((service) => service.id === fromId);
-  const toIndex = services.findIndex((service) => service.id === toId);
-  if (fromIndex < 0 || toIndex < 0) {
-    return services;
-  }
-  const next = [...services];
-  const [moved] = next.splice(fromIndex, 1);
-  next.splice(toIndex, 0, moved);
-  return next;
-}
-
 export function ServiceManagerCard(props: ServiceManagerCardProps) {
   const { snapshot, draft, updateDraft, strings } = props;
   const styles = useStyles();
@@ -226,8 +242,9 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
   const [iconQuery, setIconQuery] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
-  const [draggingId, setDraggingId] = useState<string | null>(null);
-  const [dragOverId, setDragOverId] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
+  const [placeholderIndex, setPlaceholderIndex] = useState<number | null>(null);
+  const itemRefs = useRef(new Map<string, HTMLDivElement>());
 
   const conflictPort = useMemo(() => {
     if (!editing) {
@@ -261,6 +278,22 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
       .filter((item) => item.toLowerCase().includes(normalized))
       .slice(0, 80);
   }, [editing?.icon, iconQuery]);
+
+  const draggingService = useMemo(
+    () => (dragState ? draft.localHomepage.services.find((service) => service.id === dragState.id) ?? null : null),
+    [dragState, draft.localHomepage.services]
+  );
+
+  const servicesForRender = useMemo(() => {
+    if (!dragState || placeholderIndex == null) {
+      return draft.localHomepage.services.map((service): RenderItem => ({ type: "service", service }));
+    }
+    const remaining = draft.localHomepage.services.filter((service) => service.id !== dragState.id);
+    const normalized = Math.max(0, Math.min(placeholderIndex, remaining.length));
+    const view: RenderItem[] = remaining.map((service) => ({ type: "service", service }));
+    view.splice(normalized, 0, { type: "placeholder" });
+    return view;
+  }, [dragState, draft.localHomepage.services, placeholderIndex]);
 
   function openCreateDialog() {
     const next = createNewServiceDraft(draft.localHomepage.services.length);
@@ -362,20 +395,116 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
     }
   }
 
-  function handleDrop(targetId: string) {
-    if (!draggingId || draggingId === targetId) {
-      setDragOverId(null);
+  function resolvePlaceholderIndex(pointerX: number, pointerY: number): number | null {
+    if (!dragState) {
+      return null;
+    }
+    const remaining = draft.localHomepage.services.filter((service) => service.id !== dragState.id);
+    if (remaining.length === 0) {
+      return 0;
+    }
+
+    let nearestId: string | null = null;
+    let nearestRect: DOMRect | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const service of remaining) {
+      const element = itemRefs.current.get(service.id);
+      if (!element) {
+        continue;
+      }
+      const rect = element.getBoundingClientRect();
+      const centerX = rect.left + rect.width / 2;
+      const centerY = rect.top + rect.height / 2;
+      const distance = (centerX - pointerX) ** 2 + (centerY - pointerY) ** 2;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearestId = service.id;
+        nearestRect = rect;
+      }
+    }
+
+    if (!nearestId || !nearestRect) {
+      return remaining.length;
+    }
+
+    const nearestIndex = remaining.findIndex((service) => service.id === nearestId);
+    const byVertical = Math.abs(pointerY - (nearestRect.top + nearestRect.height / 2))
+      >= Math.abs(pointerX - (nearestRect.left + nearestRect.width / 2));
+    const after = byVertical
+      ? pointerY > nearestRect.top + nearestRect.height / 2
+      : pointerX > nearestRect.left + nearestRect.width / 2;
+    return after ? nearestIndex + 1 : nearestIndex;
+  }
+
+  function applyReorder(sourceId: string, target: number) {
+    updateDraft((prev) => {
+      const sourceIndex = prev.localHomepage.services.findIndex((service) => service.id === sourceId);
+      if (sourceIndex < 0) {
+        return prev;
+      }
+      const remaining = prev.localHomepage.services.filter((service) => service.id !== sourceId);
+      const normalizedTarget = Math.max(0, Math.min(target, remaining.length));
+      const moved = prev.localHomepage.services[sourceIndex];
+      const nextServices = [...remaining];
+      nextServices.splice(normalizedTarget, 0, moved);
+      return {
+        ...prev,
+        localHomepage: {
+          ...prev.localHomepage,
+          services: nextServices
+        }
+      };
+    });
+  }
+
+  function finishDrag() {
+    if (!dragState) {
       return;
     }
-    updateDraft((prev) => ({
-      ...prev,
-      localHomepage: {
-        ...prev.localHomepage,
-        services: reorderServices(prev.localHomepage.services, draggingId, targetId)
-      }
-    }));
-    setDragOverId(null);
+    const sourceIndex = draft.localHomepage.services.findIndex((service) => service.id === dragState.id);
+    const target = placeholderIndex ?? sourceIndex;
+    if (sourceIndex >= 0 && target !== sourceIndex) {
+      applyReorder(dragState.id, target);
+    }
+    setDragState(null);
+    setPlaceholderIndex(null);
   }
+
+  useEffect(() => {
+    if (!dragState) {
+      return;
+    }
+
+    const onMouseMove = (event: MouseEvent) => {
+      const nextX = event.clientX;
+      const nextY = event.clientY;
+      setDragState((prev) =>
+        prev
+          ? {
+              ...prev,
+              mouseX: nextX,
+              mouseY: nextY
+            }
+          : prev
+      );
+      const nextPlaceholder = resolvePlaceholderIndex(nextX, nextY);
+      if (nextPlaceholder !== null) {
+        setPlaceholderIndex(nextPlaceholder);
+      }
+    };
+
+    const onMouseUp = () => {
+      finishDrag();
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+    };
+  }, [dragState, placeholderIndex, draft.localHomepage.services]);
 
   return (
     <Card className={styles.root}>
@@ -388,112 +517,107 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
       </div>
       {copyMessage && <Text>{copyMessage}</Text>}
       <div className={styles.grid}>
-        <Card className={`${styles.card} service-manager-card`}>
-          <div className={styles.rowBetween}>
-            <div className={styles.row}>
-              <FluentIcon icon="fluent:globe-24-regular" width={20} />
-              <Text weight="semibold">{strings.homepageCardName}</Text>
-              <Badge appearance="filled" color="informative">{strings.pinnedLabel}</Badge>
-            </div>
-          </div>
-          <Text>{strings.portLabel}: <strong>{snapshot.localHomepage.webPort}</strong></Text>
-          <div className={styles.row}>
-            <Text>{strings.statusLabel}:</Text>
-            <Badge color={snapshot.localHomepage.running ? "success" : "danger"}>
-              {snapshot.localHomepage.running ? strings.online : strings.offline}
-            </Badge>
-          </div>
-          <Text>{strings.homepageCardDescription}</Text>
-          <div className={styles.actions}>
-            <Button
-              className="service-manager-button"
-              appearance="subtle"
-              icon={<FluentIcon icon="fluent:copy-24-regular" width={16} />}
-              onClick={() => copyShareAddress(snapshot.localHomepage.webUrl)}
-            >
-              {strings.copyShare}
-            </Button>
-          </div>
-        </Card>
-
-        {draft.localHomepage.services.map((service) => {
+        {servicesForRender.map((item, index) => {
+          if (item.type === "placeholder") {
+            return (
+              <div
+                key={`drag-placeholder-${index}`}
+                className={styles.dragPlaceholder}
+                style={{ height: dragState?.height ?? 210 }}
+              />
+            );
+          }
+          const service = item.service;
           const runtime = statusById.get(service.id);
           const shareUrl = runtime?.shareUrl ?? `${snapshot.localHomepage.preferredHost}:${service.port}`;
           return (
-            <Card
+            <div
               key={service.id}
-              className={`${styles.card} service-manager-card${draggingId === service.id ? " is-dragging" : ""}${dragOverId === service.id ? " is-drop-target" : ""}`}
-              draggable
-              onDragStart={(event) => {
-                setDraggingId(service.id);
-                event.dataTransfer.effectAllowed = "move";
-                event.dataTransfer.setData("text/plain", service.id);
+              ref={(node) => {
+                if (node) {
+                  itemRefs.current.set(service.id, node);
+                } else {
+                  itemRefs.current.delete(service.id);
+                }
               }}
-              onDragEnd={() => {
-                setDraggingId(null);
-                setDragOverId(null);
-              }}
-              onDragEnter={() => setDragOverId(service.id)}
-              onDragOver={(event) => {
-                event.preventDefault();
-                event.dataTransfer.dropEffect = "move";
-                setDragOverId(service.id);
-              }}
-              onDrop={(event) => {
-                event.preventDefault();
-                handleDrop(service.id);
-              }}
+              className={`${styles.dragItem} service-manager-card${dragState?.id === service.id ? " is-dragging" : ""}`}
             >
-              <div className={styles.rowBetween}>
-                <div className={styles.row}>
-                  <FluentIcon icon={service.icon} width={20} />
-                  <Text weight="semibold">{service.name}</Text>
+              <Card className={styles.card}>
+                <div className={styles.rowBetween}>
+                  <div className={styles.row}>
+                    <FluentIcon icon={service.icon} width={20} />
+                    <Text weight="semibold">{service.name}</Text>
+                  </div>
+                  <span
+                    className={`${styles.dragHandle} ${dragState?.id === service.id ? styles.dragHandleActive : ""}`}
+                    onMouseDown={(event) => {
+                      if (event.button !== 0) {
+                        return;
+                      }
+                      event.preventDefault();
+                      const wrapper = itemRefs.current.get(service.id);
+                      if (!wrapper) {
+                        return;
+                      }
+                      const rect = wrapper.getBoundingClientRect();
+                      setDragState({
+                        id: service.id,
+                        offsetX: event.clientX - rect.left,
+                        offsetY: event.clientY - rect.top,
+                        mouseX: event.clientX,
+                        mouseY: event.clientY,
+                        width: rect.width,
+                        height: rect.height
+                      });
+                      const sourceIndex = draft.localHomepage.services.findIndex((item) => item.id === service.id);
+                      setPlaceholderIndex(sourceIndex >= 0 ? sourceIndex : 0);
+                    }}
+                  >
+                    <FluentIcon icon="fluent:re-order-dots-vertical-24-regular" width={16} />
+                  </span>
                 </div>
-                <span className={styles.dragHandle}>
-                  <FluentIcon icon="fluent:re-order-dots-vertical-24-regular" width={16} />
-                </span>
-              </div>
-              <Text>{strings.portLabel}: <strong>{service.port}</strong></Text>
-              <div className={styles.row}>
-                <Text>{strings.statusLabel}:</Text>
-                <Badge color={runtime?.isOnline ? "success" : "danger"}>
-                  {runtime?.isOnline ? strings.online : strings.offline}
-                </Badge>
-              </div>
-              <Text>{service.description || strings.noDescription}</Text>
-              <div className={styles.actions}>
-                <Button
-                  className="service-manager-button"
-                  appearance="secondary"
-                  icon={<FluentIcon icon="fluent:edit-24-regular" width={16} />}
-                  onClick={() => openEditDialog(service)}
-                >
-                  {strings.edit}
-                </Button>
-                <Button
-                  className="service-manager-button"
-                  appearance={pendingDeleteId === service.id ? "primary" : "subtle"}
-                  icon={<FluentIcon icon="fluent:delete-24-regular" width={16} />}
-                  onClick={() => {
-                    if (pendingDeleteId === service.id) {
-                      deleteService(service.id);
-                    } else {
-                      setPendingDeleteId(service.id);
-                    }
-                  }}
-                >
-                  {pendingDeleteId === service.id ? strings.confirmDelete : strings.delete}
-                </Button>
-                <Button
-                  className="service-manager-button"
-                  appearance="subtle"
-                  icon={<FluentIcon icon="fluent:copy-24-regular" width={16} />}
-                  onClick={() => copyShareAddress(shareUrl)}
-                >
-                  {strings.copyShare}
-                </Button>
-              </div>
-            </Card>
+                <Text>{strings.portLabel}: <strong>{service.port}</strong></Text>
+                <div className={styles.row}>
+                  <Text>{strings.statusLabel}:</Text>
+                  <Badge color={runtime?.isOnline ? "success" : "danger"}>
+                    {runtime?.isOnline ? strings.online : strings.offline}
+                  </Badge>
+                </div>
+                <Text>{service.description || strings.noDescription}</Text>
+                <div className={styles.actions}>
+                  <Button
+                    className="service-manager-button"
+                    appearance="secondary"
+                    icon={<FluentIcon icon="fluent:edit-24-regular" width={16} />}
+                    onClick={() => openEditDialog(service)}
+                  >
+                    {strings.edit}
+                  </Button>
+                  <Button
+                    className="service-manager-button"
+                    appearance={pendingDeleteId === service.id ? "primary" : "subtle"}
+                    icon={<FluentIcon icon="fluent:delete-24-regular" width={16} />}
+                    onClick={() => {
+                      if (pendingDeleteId === service.id) {
+                        deleteService(service.id);
+                      } else {
+                        setPendingDeleteId(service.id);
+                      }
+                    }}
+                  >
+                    {pendingDeleteId === service.id ? strings.confirmDelete : strings.delete}
+                  </Button>
+                  <Button
+                    className="service-manager-button"
+                    appearance="subtle"
+                    icon={<FluentIcon icon="fluent:copy-24-regular" width={16} />}
+                    onClick={() => copyShareAddress(shareUrl)}
+                  >
+                    {strings.copyShare}
+                  </Button>
+                </div>
+              </Card>
+            </div>
           );
         })}
 
@@ -508,6 +632,28 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
           </Button>
         </Card>
       </div>
+
+      {dragState && draggingService && (
+        <div
+          className={styles.dragGhost}
+          style={{
+            width: dragState.width,
+            top: dragState.mouseY - dragState.offsetY,
+            left: dragState.mouseX - dragState.offsetX
+          }}
+        >
+          <Card className={styles.card}>
+            <div className={styles.rowBetween}>
+              <div className={styles.row}>
+                <FluentIcon icon={draggingService.icon} width={20} />
+                <Text weight="semibold">{draggingService.name}</Text>
+              </div>
+            </div>
+            <Text>{strings.portLabel}: <strong>{draggingService.port}</strong></Text>
+            <Text>{draggingService.description || strings.noDescription}</Text>
+          </Card>
+        </div>
+      )}
 
       <Dialog
         open={editing !== null}

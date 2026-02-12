@@ -178,6 +178,7 @@ pub struct LocalHomepageRuntime {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppSnapshot {
+  pub bootstrapping: bool,
   pub settings: AppSettings,
   pub cache: RuntimeCache,
   pub current_ipv6: Option<String>,
