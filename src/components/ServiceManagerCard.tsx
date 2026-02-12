@@ -203,28 +203,35 @@ const ICON_CHOICES = [
   "fluent:person-wrench-24-regular"
 ];
 
+function isExternalIconValue(icon: string): boolean {
+  return /^https?:\/\//i.test(icon) || /^data:image\//i.test(icon) || /^blob:/i.test(icon);
+}
+
 function createNewServiceDraft(existingCount: number): EditingModel {
   const preset = findPreset("Custom");
+  const presetIcon = preset?.icon ?? "fluent:apps-list-detail-24-regular";
+  const isExternalIcon = isExternalIconValue(presetIcon);
   return {
     id: null,
     presetType: "Custom",
     name: `New Server ${existingCount + 1}`,
     port: String(preset?.defaultPort ?? 8080),
-    icon: preset?.icon ?? "fluent:apps-list-detail-24-regular",
+    icon: isExternalIcon ? "" : presetIcon,
     description: preset?.defaultDescription ?? "",
-    iconUrl: ""
+    iconUrl: isExternalIcon ? presetIcon : ""
   };
 }
 
 function toEditingModel(service: ServiceModel): EditingModel {
+  const isExternalIcon = isExternalIconValue(service.icon);
   return {
     id: service.id,
     presetType: service.presetType,
     name: service.name,
     port: String(service.port),
-    icon: service.icon,
+    icon: isExternalIcon ? "" : service.icon,
     description: service.description,
-    iconUrl: service.icon.startsWith("http") ? service.icon : ""
+    iconUrl: isExternalIcon ? service.icon : ""
   };
 }
 
@@ -317,16 +324,17 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
     if (!preset || !editing) {
       return;
     }
+    const isExternalIcon = isExternalIconValue(preset.icon);
     setEditing({
       ...editing,
       presetType: preset.name,
       name: preset.name === "Custom" ? editing.name : preset.name,
       port: String(preset.defaultPort),
-      icon: preset.icon,
+      icon: isExternalIcon ? "" : preset.icon,
       description: preset.defaultDescription,
-      iconUrl: ""
+      iconUrl: isExternalIcon ? preset.icon : ""
     });
-    setIconQuery(preset.icon);
+    setIconQuery(isExternalIcon ? "" : preset.icon);
   }
 
   function saveEditing() {
@@ -750,11 +758,6 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
                   {filteredIconChoices.length === 0 && (
                     <Text>{strings.iconSearchNoResult}</Text>
                   )}
-                  <div className={styles.row}>
-                    <Text>{strings.iconPreviewLabel}:</Text>
-                    <FluentIcon icon={editing.icon || "fluent:question-circle-24-regular"} width={18} />
-                    <Text>{editing.icon || "-"}</Text>
-                  </div>
 
                   <Field label={strings.iconUrlLabel}>
                     <Input
@@ -763,6 +766,14 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
                       onChange={(_, data) => setEditing({ ...editing, iconUrl: data.value })}
                     />
                   </Field>
+                  <div className={styles.row}>
+                    <Text>{strings.iconPreviewLabel}:</Text>
+                    <FluentIcon
+                      icon={editing.iconUrl.trim() || editing.icon || "fluent:question-circle-24-regular"}
+                      width={18}
+                    />
+                    {editing.iconUrl.trim().length === 0 && <Text>{editing.icon || "-"}</Text>}
+                  </div>
 
                   <Field label={strings.descriptionLabel}>
                     <Input

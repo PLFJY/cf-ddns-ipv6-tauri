@@ -104,8 +104,6 @@ const WEB_STRINGS = {
     loading: "Loading homepage data...",
     copy: "Copy address",
     copied: "Copied",
-    homepageCardName: "Local Homepage",
-    homepageCardDescription: "Built-in local homepage entry",
     noServices: "No services configured yet."
   },
   "zh-CN": {
@@ -123,8 +121,6 @@ const WEB_STRINGS = {
     loading: "正在加载主页数据...",
     copy: "复制地址",
     copied: "已复制",
-    homepageCardName: "本机主页",
-    homepageCardDescription: "内置本机主页入口",
     noServices: "暂无已配置服务。"
   }
 } as const;
@@ -188,18 +184,8 @@ export default function HomepageApp() {
     if (!snapshot) {
       return [];
     }
-    const homepageCard: ServiceRuntimeModel = {
-      id: "__local_homepage",
-      name: strings.homepageCardName,
-      port: snapshot.webPort,
-      icon: "fluent:globe-24-regular",
-      description: strings.homepageCardDescription,
-      presetType: "HTTP",
-      isOnline: true,
-      shareUrl: snapshot.webUrl
-    };
-    return [homepageCard, ...snapshot.services];
-  }, [snapshot, strings.homepageCardDescription, strings.homepageCardName]);
+    return snapshot.services;
+  }, [snapshot]);
 
   async function copyAddress(id: string, text: string) {
     try {
