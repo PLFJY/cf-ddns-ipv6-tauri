@@ -12,6 +12,8 @@ Tray-first desktop app that keeps a Cloudflare AAAA record synced with your curr
 
 ## Features
 
+- DDNS scope: IPv6 only (AAAA only). No A-record/IPv4 update behavior.
+- IPv4 exists in code only for local homepage runtime (bind/check/display fallback), not for DNS push.
 - Auto detect and track current global IPv6 from local interfaces
 - Cloudflare AAAA sync:
   - Manual push
@@ -127,6 +129,8 @@ Preferred share host selection order:
 2. Outbound IPv4
 3. Current IPv6
 4. `127.0.0.1`
+
+Note: the outbound IPv4 above is only used for local homepage/share URL display fallback, not for Cloudflare DDNS update logic.
 
 ## Storage and Security
 
