@@ -1,5 +1,8 @@
+mod carrier_map;
 mod cloudflare;
 mod config;
+mod geoip;
+mod ipv6_stability;
 mod models;
 mod network;
 mod platform;
@@ -27,7 +30,7 @@ use models::{
   AppConfig, AppSnapshot, InterfaceInfo, LocalHomepageRuntime, LookupRecordIdRequest,
   SaveSettingsRequest, ServiceModel, ServiceRuntimeModel, SyncStatus, SyncStatusKind, ThemeMode, LanguageMode,
 };
-use parking_lot::Mutex;
+use parking_lot::{Mutex, RwLock};
 use secure_store::SecureTokenStore;
 use tauri::{
   menu::{CheckMenuItemBuilder, MenuBuilder, MenuItemBuilder, PredefinedMenuItem},
@@ -52,6 +55,8 @@ struct AppState {
   config: Mutex<AppConfig>,
   interfaces: Mutex<Vec<InterfaceInfo>>,
   current_ipv6: Mutex<Option<String>>,
+  geoip_lookup: RwLock<geoip::GeoIpLookup>,
+  geoip_download_inflight: AtomicBool,
   linux_theme_hint: Option<ThemeMode>,
   token_store: SecureTokenStore,
   notify: Arc<Notify>,
@@ -79,6 +84,9 @@ impl AppState {
       configured_port
     };
     let current_ipv6 = self.current_ipv6.lock().clone();
+    let current_ipv6_geo = current_ipv6
+      .as_deref()
+      .and_then(|ip| self.geoip_lookup.read().lookup_ip(ip));
     let preferred_host = if bootstrapping {
       let domain = config.settings.cloudflare.domain.trim();
       if !domain.is_empty() {
@@ -101,6 +109,7 @@ impl AppState {
       settings: config.settings,
       cache: config.cache,
       current_ipv6,
+      current_ipv6_geo,
       interfaces: self.interfaces.lock().clone(),
       has_token,
       linux_theme_hint: self.linux_theme_hint,
@@ -394,6 +403,7 @@ async fn run_detection_cycle(app: &AppHandle, state: &Arc<AppState>) -> Result<(
   };
   *state.interfaces.lock() = interfaces;
   *state.current_ipv6.lock() = current_ipv6.clone();
+  spawn_geoip_download_if_needed(app, state);
 
   let mut changed = false;
   {
@@ -601,6 +611,38 @@ fn emit_snapshot(app: &AppHandle, state: &Arc<AppState>) {
 
 fn emit_network_changed(app: &AppHandle) {
   let _ = app.emit(NETWORK_CHANGED_EVENT, ());
+}
+
+fn spawn_geoip_download_if_needed(app: &AppHandle, state: &Arc<AppState>) {
+  let missing_db = state.geoip_lookup.read().missing_any_database();
+  if !missing_db {
+    return;
+  }
+  if state.geoip_download_inflight.swap(true, Ordering::SeqCst) {
+    return;
+  }
+
+  let app = app.clone();
+  let state = state.clone();
+  let config_path = state.config_path.clone();
+  tauri::async_runtime::spawn(async move {
+    let result = geoip::ensure_geoip_databases(&config_path).await;
+    if !result.errors.is_empty() {
+      eprintln!("geoip background download finished with errors: {}", result.errors.join(" | "));
+    }
+
+    // Reload from disk so new databases can be used immediately.
+    let reloaded = geoip::GeoIpLookup::new(&config_path, app.path().resource_dir().ok());
+    {
+      let mut guard = state.geoip_lookup.write();
+      *guard = reloaded;
+    }
+
+    if result.changed {
+      emit_snapshot(&app, &state);
+    }
+    state.geoip_download_inflight.store(false, Ordering::SeqCst);
+  });
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -930,10 +972,12 @@ pub fn run() {
       let app_icon_path = resolve_app_icon_path(app.handle());
 
       let state = SharedState(Arc::new(AppState {
-        config_path,
+        config_path: config_path.clone(),
         config: Mutex::new(loaded_config.clone()),
         interfaces: Mutex::new(Vec::new()),
         current_ipv6: Mutex::new(None),
+        geoip_lookup: RwLock::new(geoip::GeoIpLookup::new(&config_path, app.path().resource_dir().ok())),
+        geoip_download_inflight: AtomicBool::new(false),
         linux_theme_hint: platform::detect_theme_hint(),
         token_store: SecureTokenStore::new("dev.plfjy.cloudflare-ipv6-ddns"),
         notify,
@@ -998,6 +1042,7 @@ pub fn run() {
       }
 
       emit_snapshot(app.handle(), &state.0);
+      spawn_geoip_download_if_needed(app.handle(), &state.0);
       spawn_local_homepage_server(app.handle().clone(), state.clone());
       spawn_startup_refresh_task(app.handle().clone(), state.clone());
       spawn_ip_change_worker(app.handle().clone(), state);

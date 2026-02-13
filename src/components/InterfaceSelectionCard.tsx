@@ -12,9 +12,16 @@ interface InterfaceSelectionCardProps {
   strings: UiStrings["network"];
 }
 
+const ALL_INTERFACES_VALUE = "__all_interfaces__";
+
 export function InterfaceSelectionCard(props: InterfaceSelectionCardProps) {
   const { snapshot, draft, updateDraft, panelClassName, rowClassName, strings } = props;
+  const isAllInterfacesSelected = draft.selectedInterface == null;
   const selectedInterface = snapshot.interfaces.find((item) => item.id === draft.selectedInterface) ?? null;
+  const displayedInterfaces = isAllInterfacesSelected
+    ? snapshot.interfaces
+    : (selectedInterface ? [selectedInterface] : []);
+  const displayedIpv6 = Array.from(new Set(displayedInterfaces.flatMap((item) => item.ipv6Addresses))).sort();
 
   return (
     <Card className={panelClassName}>
@@ -23,16 +30,22 @@ export function InterfaceSelectionCard(props: InterfaceSelectionCardProps) {
       </Title3>
       <Field label={strings.selectedInterface}>
         <Combobox
-          selectedOptions={draft.selectedInterface ? [draft.selectedInterface] : []}
-          value={selectedInterface?.label ?? ""}
+          selectedOptions={[isAllInterfacesSelected ? ALL_INTERFACES_VALUE : (draft.selectedInterface ?? ALL_INTERFACES_VALUE)]}
+          value={isAllInterfacesSelected ? strings.allInterfaces : (selectedInterface?.label ?? "")}
           placeholder={strings.chooseInterface}
           onOptionSelect={(_, data) =>
             updateDraft((prev) => ({
               ...prev,
-              selectedInterface: data.optionValue ? String(data.optionValue) : null
+              selectedInterface:
+                data.optionValue && String(data.optionValue) !== ALL_INTERFACES_VALUE
+                  ? String(data.optionValue)
+                  : null
             }))
           }
         >
+          <Option key={ALL_INTERFACES_VALUE} value={ALL_INTERFACES_VALUE} text={strings.allInterfaces}>
+            {strings.allInterfaces}
+          </Option>
           {snapshot.interfaces.map((item) => (
             <Option
               key={item.id}
@@ -45,15 +58,15 @@ export function InterfaceSelectionCard(props: InterfaceSelectionCardProps) {
         </Combobox>
       </Field>
       <Text>
-        {strings.mac}: <strong>{selectedInterface?.macAddress ?? strings.unavailable}</strong>
+        {strings.mac}: <strong>{isAllInterfacesSelected ? strings.unavailable : (selectedInterface?.macAddress ?? strings.unavailable)}</strong>
       </Text>
       <Text>
-        {strings.linkSpeed}: <strong>{selectedInterface?.linkSpeedMbps ? `${selectedInterface.linkSpeedMbps} Mbps` : strings.unavailable}</strong>
+        {strings.linkSpeed}: <strong>{isAllInterfacesSelected ? strings.unavailable : (selectedInterface?.linkSpeedMbps ? `${selectedInterface.linkSpeedMbps} Mbps` : strings.unavailable)}</strong>
       </Text>
       <div className={rowClassName}>
         <Text>{strings.ipv6Addresses}:</Text>
-        {(selectedInterface?.ipv6Addresses ?? []).length === 0 && <Badge>{strings.noIpv6}</Badge>}
-        {(selectedInterface?.ipv6Addresses ?? []).map((ip) => (
+        {displayedIpv6.length === 0 && <Badge>{strings.noIpv6}</Badge>}
+        {displayedIpv6.map((ip) => (
           <Badge
             key={`selected-${ip}`}
             appearance={ip === snapshot.currentIpv6 ? "filled" : "outline"}

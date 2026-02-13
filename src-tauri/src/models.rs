@@ -152,6 +152,15 @@ pub struct InterfaceInfo {
   pub link_speed_mbps: Option<u64>,
 }
 
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct IpGeoInfo {
+  pub asn: Option<u32>,
+  pub organization: Option<String>,
+  pub carrier_name: Option<String>,
+  pub country_iso_code: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ServiceRuntimeModel {
@@ -182,6 +191,7 @@ pub struct AppSnapshot {
   pub settings: AppSettings,
   pub cache: RuntimeCache,
   pub current_ipv6: Option<String>,
+  pub current_ipv6_geo: Option<IpGeoInfo>,
   pub interfaces: Vec<InterfaceInfo>,
   pub has_token: bool,
   pub linux_theme_hint: Option<ThemeMode>,

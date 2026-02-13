@@ -3,40 +3,27 @@ use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, UdpSocket};
 
 use netdev::{get_interfaces, Interface};
 
+use crate::ipv6_stability::{collect_ranks_from_interfaces, StabilityIndex, StabilityRank};
 use crate::models::InterfaceInfo;
 
 pub fn collect_interfaces_and_ipv6(selected_interface: Option<&str>) -> (Vec<InterfaceInfo>, Option<String>) {
   let mut interfaces = get_interfaces();
   interfaces.sort_by(|a, b| a.name.cmp(&b.name));
   let outbound_source_ipv6 = detect_outbound_source_ipv6();
+  let stability_index = collect_ranks_from_interfaces(&interfaces);
 
   let infos = interfaces.iter().map(to_interface_info).collect::<Vec<_>>();
 
-  let selected = selected_interface
-    .and_then(|name| interfaces.iter().find(|iface| iface.name == name))
-    .and_then(|iface| select_ipv6_from_interface(iface, outbound_source_ipv6))
-    .map(|addr| addr.to_string());
-
-  if selected.is_some() {
-    return (infos, selected);
-  }
-
-  if let Some(outbound) = outbound_source_ipv6 {
-    let exists = interfaces
+  let current_ipv6 = if let Some(name) = selected_interface {
+    interfaces
       .iter()
-      .any(|iface| iface.ipv6.iter().any(|network| network.addr() == outbound));
-    if exists {
-      return (infos, Some(outbound.to_string()));
-    }
-  }
+      .find(|iface| iface.name == name)
+      .and_then(|iface| select_ipv6_from_interface(iface, &stability_index, outbound_source_ipv6))
+  } else {
+    select_ipv6_from_interfaces(&interfaces, &stability_index, outbound_source_ipv6)
+  };
 
-  let fallback = interfaces
-    .iter()
-    .filter_map(|iface| select_ipv6_from_interface(iface, outbound_source_ipv6))
-    .map(|addr| addr.to_string())
-    .next();
-
-  (infos, fallback)
+  (infos, current_ipv6.map(|addr| addr.to_string()))
 }
 
 fn to_interface_info(iface: &Interface) -> InterfaceInfo {
@@ -80,27 +67,67 @@ fn to_interface_info(iface: &Interface) -> InterfaceInfo {
   }
 }
 
-fn select_ipv6_from_interface(iface: &Interface, outbound_source_ipv6: Option<Ipv6Addr>) -> Option<Ipv6Addr> {
-  let mut candidates = iface
+fn select_ipv6_from_interface(
+  iface: &Interface,
+  stability_index: &StabilityIndex,
+  outbound_source_ipv6: Option<Ipv6Addr>,
+) -> Option<Ipv6Addr> {
+  let candidates = iface
     .ipv6
     .iter()
-    .map(|network| network.addr())
-    .filter(is_global_candidate)
+    .filter_map(|network| to_candidate(iface, network.addr(), network.prefix_len(), stability_index, outbound_source_ipv6))
     .collect::<Vec<_>>();
+  pick_best_candidate(candidates)
+}
 
-  if let Some(outbound) = outbound_source_ipv6 {
-    if candidates.contains(&outbound) {
-      // Rust `UdpSocket::local_addr` returns the source address selected by OS routing/address policy
-      // after `connect`; when that address exists on this interface, we prioritize it for DDNS updates.
-      return Some(outbound);
-    }
+fn select_ipv6_from_interfaces(
+  interfaces: &[Interface],
+  stability_index: &StabilityIndex,
+  outbound_source_ipv6: Option<Ipv6Addr>,
+) -> Option<Ipv6Addr> {
+  let candidates = interfaces
+    .iter()
+    .flat_map(|iface| {
+      iface
+        .ipv6
+        .iter()
+        .filter_map(|network| to_candidate(iface, network.addr(), network.prefix_len(), stability_index, outbound_source_ipv6))
+    })
+    .collect::<Vec<_>>();
+  pick_best_candidate(candidates)
+}
+
+fn to_candidate(
+  iface: &Interface,
+  addr: Ipv6Addr,
+  prefix_len: u8,
+  stability_index: &StabilityIndex,
+  outbound_source_ipv6: Option<Ipv6Addr>,
+) -> Option<Ipv6Candidate> {
+  if !is_global_candidate(&addr) {
+    return None;
   }
+  Some(Ipv6Candidate {
+    addr,
+    stability_rank: stability_index.rank_for(&iface.name, addr, prefix_len),
+    outbound_selected: Some(addr) == outbound_source_ipv6,
+  })
+}
 
-  // Rust std docs: `Ipv6Addr` helpers let us exclude loopback/link-local/multicast/unique-local.
-  // netdev's cross-platform interface model does not expose "temporary" flags uniformly, so
-  // we use deterministic lexical order as the fallback heuristic for repeatable behavior.
-  candidates.sort_by(order_ipv6_candidates);
-  candidates.into_iter().next()
+fn pick_best_candidate(mut candidates: Vec<Ipv6Candidate>) -> Option<Ipv6Addr> {
+  if candidates.is_empty() {
+    return None;
+  }
+  candidates.sort_by(order_ipv6_candidates_with_policy);
+  candidates.into_iter().next().map(|candidate| candidate.addr)
+}
+
+fn order_ipv6_candidates_with_policy(a: &Ipv6Candidate, b: &Ipv6Candidate) -> Ordering {
+  a
+    .stability_rank
+    .cmp(&b.stability_rank)
+    .then_with(|| a.outbound_selected.cmp(&b.outbound_selected).reverse())
+    .then_with(|| order_ipv6_candidates(&a.addr, &b.addr))
 }
 
 fn detect_outbound_source_ipv6() -> Option<Ipv6Addr> {
@@ -140,4 +167,10 @@ fn is_global_candidate(address: &Ipv6Addr) -> bool {
 
 fn order_ipv6_candidates(a: &Ipv6Addr, b: &Ipv6Addr) -> Ordering {
   a.octets().cmp(&b.octets())
+}
+
+struct Ipv6Candidate {
+  addr: Ipv6Addr,
+  stability_rank: StabilityRank,
+  outbound_selected: bool,
 }

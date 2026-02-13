@@ -37,6 +37,7 @@ export interface UiStrings {
   status: {
     title: string;
     currentIpv6: string;
+    carrier: string;
     notFound: string;
     lastIpv6Change: string;
     lastSync: string;
@@ -55,6 +56,7 @@ export interface UiStrings {
     title: string;
     selectedInterface: string;
     chooseInterface: string;
+    allInterfaces: string;
     mac: string;
     linkSpeed: string;
     unavailable: string;
@@ -161,6 +163,7 @@ const EN_STRINGS: UiStrings = {
   status: {
     title: "IPv6 & Sync Status",
     currentIpv6: "Current IPv6",
+    carrier: "Carrier",
     notFound: "Not found",
     lastIpv6Change: "Last IPv6 change",
     lastSync: "Last sync",
@@ -179,6 +182,7 @@ const EN_STRINGS: UiStrings = {
     title: "Interface Selection",
     selectedInterface: "Selected interface",
     chooseInterface: "Choose an interface",
+    allInterfaces: "All interfaces",
     mac: "MAC",
     linkSpeed: "Link speed",
     unavailable: "Unavailable",
@@ -285,6 +289,7 @@ const ZH_CN_STRINGS: UiStrings = {
   status: {
     title: "IPv6 与同步状态",
     currentIpv6: "当前 IPv6",
+    carrier: "运营商",
     notFound: "未检测到",
     lastIpv6Change: "上次 IPv6 变化",
     lastSync: "上次同步",
@@ -303,6 +308,7 @@ const ZH_CN_STRINGS: UiStrings = {
     title: "网卡选择",
     selectedInterface: "当前网卡",
     chooseInterface: "选择网卡",
+    allInterfaces: "全部网卡",
     mac: "MAC",
     linkSpeed: "链路速率",
     unavailable: "不可用",

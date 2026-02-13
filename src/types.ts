@@ -40,6 +40,13 @@ export interface SyncStatus {
   message: string | null;
 }
 
+export interface IpGeoInfo {
+  asn: number | null;
+  organization: string | null;
+  carrierName: string | null;
+  countryIsoCode: string | null;
+}
+
 export interface RuntimeCache {
   lastKnownIpv6: string | null;
   lastIpv6ChangeTime: string | null;
@@ -60,6 +67,7 @@ export interface AppSnapshot {
   settings: AppSettings;
   cache: RuntimeCache;
   currentIpv6: string | null;
+  currentIpv6Geo: IpGeoInfo | null;
   interfaces: InterfaceInfo[];
   hasToken: boolean;
   linuxThemeHint: ThemeMode | null;

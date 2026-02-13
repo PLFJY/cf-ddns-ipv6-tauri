@@ -32,6 +32,22 @@ function statusTone(status: SyncStatusKind): "brand" | "danger" | "informative" 
 
 export function SyncStatusCard(props: SyncStatusCardProps) {
   const { snapshot, isPushing, onManualPush, panelClassName, rowClassName, strings } = props;
+  const carrierText = (() => {
+    const geo = snapshot.currentIpv6Geo;
+    if (!geo) {
+      return strings.notFound;
+    }
+    const mappedName = geo.carrierName?.trim();
+    if (mappedName) {
+      return mappedName;
+    }
+    const org = geo.organization?.trim() || "";
+    const asnPart = geo.asn != null ? `AS${geo.asn}` : "";
+    const joined = [org, asnPart].filter((part) => part.length > 0).join(" ");
+    return joined || strings.notFound;
+  })();
+  const countryCode = snapshot.currentIpv6Geo?.countryIsoCode?.toLowerCase() ?? null;
+  const countryIcon = countryCode ? `circle-flags:${countryCode}` : "fluent:flag-24-regular";
 
   return (
     <Card className={panelClassName}>
@@ -40,6 +56,13 @@ export function SyncStatusCard(props: SyncStatusCardProps) {
       </Title3>
       <Text>
         {strings.currentIpv6}: <strong>{snapshot.currentIpv6 ?? strings.notFound}</strong>
+      </Text>
+      <Text>
+        {strings.carrier}:{" "}
+        <strong style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <FluentIcon icon={countryIcon} width={18} />
+          {carrierText}
+        </strong>
       </Text>
       <Text>
         {strings.lastIpv6Change}: <strong>{formatTimestamp(snapshot.cache.lastIpv6ChangeTime, strings.never)}</strong>

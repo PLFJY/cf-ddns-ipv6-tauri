@@ -1,6 +1,6 @@
 [package]
 name = "cf-ddns-ipv6-tauri"
-version = "0.1.1"
+version = "0.1.2"
 description = "Cloudflare IPv6 DDNS desktop client"
 authors = ["PLFJY"]
 edition = "2021"
@@ -17,6 +17,7 @@ anyhow = "1.0.97"
 axum = "0.8.1"
 chrono = { version = "0.4.40", features = ["clock", "serde"] }
 keyring = { version = "3.6.2", default-features = false, features = ["apple-native", "linux-native-sync-persistent", "windows-native"] }
+maxminddb = "0.26.0"
 mime_guess = "2.0.5"
 netdev = "0.31.0"
 parking_lot = "0.12.3"
