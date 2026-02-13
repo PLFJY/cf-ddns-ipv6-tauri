@@ -1,6 +1,6 @@
 [package]
 name = "cf-ddns-ipv6-tauri"
-version = "0.1.4"
+version = "0.1.5"
 description = "Cloudflare IPv6 DDNS desktop client"
 authors = ["PLFJY"]
 edition = "2021"

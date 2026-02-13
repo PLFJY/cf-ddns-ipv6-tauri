@@ -1,5 +1,5 @@
 import { Badge, Button, Card, Text, Title3, makeStyles } from "@fluentui/react-components";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { UiStrings } from "../i18n";
 import type { AppSnapshot } from "../types";
 import { copyTextToClipboard } from "../utils/clipboard";
@@ -25,17 +25,23 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
   const styles = useStyles();
   const { snapshot, strings, panelClassName, rowClassName } = props;
   const pushedDomain = snapshot.settings.cloudflare.domain.trim();
-  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<{ target: "homepage" | "ipv6"; message: string } | null>(null);
+  const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function setCopyFeedbackWithTimer(target: "homepage" | "ipv6", copied: boolean) {
+    if (copyFeedbackTimerRef.current) {
+      clearTimeout(copyFeedbackTimerRef.current);
+    }
+    setCopyFeedback({
+      target,
+      message: copied ? strings.copied : strings.copyFailed
+    });
+    copyFeedbackTimerRef.current = setTimeout(() => setCopyFeedback(null), 1200);
+  }
 
   async function copyHomepageUrl() {
     const copied = await copyTextToClipboard(snapshot.localHomepage.webUrl);
-    if (copied) {
-      setCopyMessage(strings.copied);
-      setTimeout(() => setCopyMessage(null), 1200);
-    } else {
-      setCopyMessage(strings.copyFailed);
-      setTimeout(() => setCopyMessage(null), 1200);
-    }
+    setCopyFeedbackWithTimer("homepage", copied);
   }
 
   async function copyIpv6Url() {
@@ -45,14 +51,16 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
     }
     const ipv6Url = `http://[${ipv6}]:${snapshot.localHomepage.webPort}/index.html`;
     const copied = await copyTextToClipboard(ipv6Url);
-    if (copied) {
-      setCopyMessage(strings.copied);
-      setTimeout(() => setCopyMessage(null), 1200);
-    } else {
-      setCopyMessage(strings.copyFailed);
-      setTimeout(() => setCopyMessage(null), 1200);
-    }
+    setCopyFeedbackWithTimer("ipv6", copied);
   }
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimerRef.current) {
+        clearTimeout(copyFeedbackTimerRef.current);
+      }
+    };
+  }, []);
 
   return (
     <Card className={panelClassName}>
@@ -76,7 +84,7 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
           icon={<FluentIcon icon="fluent:copy-24-regular" width={14} />}
           onClick={copyHomepageUrl}
         >
-          {copyMessage ?? strings.copyUrl}
+          {copyFeedback?.target === "homepage" ? copyFeedback.message : strings.copyUrl}
         </Button>
         <Button
           size="small"
@@ -85,7 +93,7 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
           onClick={copyIpv6Url}
           disabled={!snapshot.currentIpv6}
         >
-          {strings.copyIpv6Url}
+          {copyFeedback?.target === "ipv6" ? copyFeedback.message : strings.copyIpv6Url}
         </Button>
       </div>
       <div className={rowClassName}>

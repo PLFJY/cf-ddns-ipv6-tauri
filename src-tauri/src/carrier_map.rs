@@ -79,6 +79,14 @@ fn lookup_asn(asn: u32) -> Option<&'static str> {
     9318 => Some("SK Broadband Co Ltd"),
     3786 => Some("LG Uplus Corp."),
 
+    // Australia
+    1221 => Some("Telstra Pty Ltd"),
+    7474 => Some("Singtel Optus Pty Ltd"),
+    7545 => Some("TPG Telecom Limited"),
+    4739 => Some("iiNet Limited"),
+    4826 => Some("Vocus Pty Ltd"),
+    7575 => Some("AARNet Pty Ltd"),
+
     // Europe (major)
     3320 => Some("Deutsche Telekom AG"),
     6805 => Some("Telefonica Germany GmbH & Co. OHG"),
@@ -128,6 +136,24 @@ fn lookup_org_keyword(organization: &str) -> Option<&'static str> {
   }
   if normalized.contains("korea telecom") || normalized == "kt" {
     return Some("Korea Telecom");
+  }
+  if normalized.contains("telstra") {
+    return Some("Telstra Pty Ltd");
+  }
+  if normalized.contains("optus") || normalized.contains("singtel optus") {
+    return Some("Singtel Optus Pty Ltd");
+  }
+  if normalized.contains("tpg telecom") || normalized.contains("tpg internet") {
+    return Some("TPG Telecom Limited");
+  }
+  if normalized.contains("iinet") {
+    return Some("iiNet Limited");
+  }
+  if normalized.contains("vocus") {
+    return Some("Vocus Pty Ltd");
+  }
+  if normalized.contains("aarnet") {
+    return Some("AARNet Pty Ltd");
   }
   None
 }

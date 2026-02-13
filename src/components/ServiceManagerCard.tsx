@@ -51,6 +51,15 @@ interface DragState {
   height: number;
 }
 
+interface DragLayoutItem {
+  id: string;
+  index: number;
+  centerX: number;
+  centerY: number;
+  width: number;
+  height: number;
+}
+
 type RenderItem =
   | { type: "service"; service: ServiceModel }
   | { type: "placeholder" };
@@ -249,10 +258,13 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
   const [editing, setEditing] = useState<EditingModel | null>(null);
   const [iconQuery, setIconQuery] = useState("");
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [copyFeedback, setCopyFeedback] = useState<{ serviceId: string; message: string } | null>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [placeholderIndex, setPlaceholderIndex] = useState<number | null>(null);
   const itemRefs = useRef(new Map<string, HTMLDivElement>());
+  const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const placeholderIndexRef = useRef<number | null>(null);
+  const dragLayoutRef = useRef<DragLayoutItem[]>([]);
 
   const conflictPort = useMemo(() => {
     if (!editing) {
@@ -393,14 +405,17 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
     setPendingDeleteId(null);
   }
 
-  async function copyShareAddress(shareUrl: string) {
+  async function copyShareAddress(serviceId: string, shareUrl: string) {
     const copied = await copyTextToClipboard(shareUrl);
+    if (copyFeedbackTimerRef.current) {
+      clearTimeout(copyFeedbackTimerRef.current);
+    }
     if (copied) {
-      setCopyMessage(strings.copied);
-      setTimeout(() => setCopyMessage(null), 1500);
+      setCopyFeedback({ serviceId, message: strings.copied });
+      copyFeedbackTimerRef.current = setTimeout(() => setCopyFeedback(null), 1500);
     } else {
-      setCopyMessage(strings.copyFailed);
-      setTimeout(() => setCopyMessage(null), 1500);
+      setCopyFeedback({ serviceId, message: strings.copyFailed });
+      copyFeedbackTimerRef.current = setTimeout(() => setCopyFeedback(null), 1500);
     }
   }
 
@@ -413,37 +428,54 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
       return 0;
     }
 
-    let nearestId: string | null = null;
-    let nearestRect: DOMRect | null = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
-
-    for (const service of remaining) {
-      const element = itemRefs.current.get(service.id);
-      if (!element) {
-        continue;
-      }
-      const rect = element.getBoundingClientRect();
-      const centerX = rect.left + rect.width / 2;
-      const centerY = rect.top + rect.height / 2;
-      const distance = (centerX - pointerX) ** 2 + (centerY - pointerY) ** 2;
-      if (distance < nearestDistance) {
-        nearestDistance = distance;
-        nearestId = service.id;
-        nearestRect = rect;
-      }
-    }
-
-    if (!nearestId || !nearestRect) {
+    const layout = dragLayoutRef.current.length > 0
+      ? dragLayoutRef.current
+      : remaining
+          .map((service, index) => {
+            const element = itemRefs.current.get(service.id);
+            if (!element) {
+              return null;
+            }
+            const rect = element.getBoundingClientRect();
+            return {
+              id: service.id,
+              index,
+              centerX: rect.left + rect.width / 2,
+              centerY: rect.top + rect.height / 2,
+              width: rect.width,
+              height: rect.height
+            } satisfies DragLayoutItem;
+          })
+          .filter((item): item is DragLayoutItem => item !== null);
+    if (layout.length === 0) {
       return remaining.length;
     }
 
-    const nearestIndex = remaining.findIndex((service) => service.id === nearestId);
-    const byVertical = Math.abs(pointerY - (nearestRect.top + nearestRect.height / 2))
-      >= Math.abs(pointerX - (nearestRect.left + nearestRect.width / 2));
-    const after = byVertical
-      ? pointerY > nearestRect.top + nearestRect.height / 2
-      : pointerX > nearestRect.left + nearestRect.width / 2;
-    return after ? nearestIndex + 1 : nearestIndex;
+    let nearest: DragLayoutItem | null = null;
+    let nearestDistance = Number.POSITIVE_INFINITY;
+
+    for (const item of layout) {
+      const distance = (item.centerX - pointerX) ** 2 + (item.centerY - pointerY) ** 2;
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = item;
+      }
+    }
+
+    if (!nearest) {
+      return layout.length;
+    }
+
+    const hysteresisRatio = 0.2;
+    const byVertical = Math.abs(pointerY - nearest.centerY) >= Math.abs(pointerX - nearest.centerX);
+    const deltaY = pointerY - nearest.centerY;
+    const deltaX = pointerX - nearest.centerX;
+    const threshold = byVertical ? nearest.height * hysteresisRatio : nearest.width * hysteresisRatio;
+    if ((byVertical ? Math.abs(deltaY) : Math.abs(deltaX)) <= threshold && placeholderIndexRef.current !== null) {
+      return Math.max(0, Math.min(placeholderIndexRef.current, layout.length));
+    }
+    const after = byVertical ? deltaY > 0 : deltaX > 0;
+    return after ? nearest.index + 1 : nearest.index;
   }
 
   function applyReorder(sourceId: string, target: number) {
@@ -477,6 +509,8 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
       applyReorder(dragState.id, target);
     }
     setDragState(null);
+    dragLayoutRef.current = [];
+    placeholderIndexRef.current = null;
     setPlaceholderIndex(null);
   }
 
@@ -499,6 +533,7 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
       );
       const nextPlaceholder = resolvePlaceholderIndex(nextX, nextY);
       if (nextPlaceholder !== null) {
+        placeholderIndexRef.current = nextPlaceholder;
         setPlaceholderIndex(nextPlaceholder);
       }
     };
@@ -515,6 +550,18 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
     };
   }, [dragState, placeholderIndex, draft.localHomepage.services]);
 
+  useEffect(() => {
+    placeholderIndexRef.current = placeholderIndex;
+  }, [placeholderIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (copyFeedbackTimerRef.current) {
+        clearTimeout(copyFeedbackTimerRef.current);
+      }
+    };
+  }, []);
+
   return (
     <Card className={styles.root}>
       <div className={styles.head}>
@@ -524,8 +571,7 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
         </Title3>
         <Text className={styles.hint}>{strings.dragSortHint}</Text>
       </div>
-      {copyMessage && <Text>{copyMessage}</Text>}
-      <div className={styles.grid}>
+      <div className={`${styles.grid}${dragState ? " service-manager-grid-dragging" : ""}`}>
         {servicesForRender.map((item, index) => {
           if (item.type === "placeholder") {
             return (
@@ -569,6 +615,25 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
                         return;
                       }
                       const rect = wrapper.getBoundingClientRect();
+                      const layout = draft.localHomepage.services
+                        .filter((item) => item.id !== service.id)
+                        .map((item, index) => {
+                          const element = itemRefs.current.get(item.id);
+                          if (!element) {
+                            return null;
+                          }
+                          const itemRect = element.getBoundingClientRect();
+                          return {
+                            id: item.id,
+                            index,
+                            centerX: itemRect.left + itemRect.width / 2,
+                            centerY: itemRect.top + itemRect.height / 2,
+                            width: itemRect.width,
+                            height: itemRect.height
+                          } satisfies DragLayoutItem;
+                        })
+                        .filter((item): item is DragLayoutItem => item !== null);
+                      dragLayoutRef.current = layout;
                       setDragState({
                         id: service.id,
                         offsetX: event.clientX - rect.left,
@@ -579,7 +644,9 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
                         height: rect.height
                       });
                       const sourceIndex = draft.localHomepage.services.findIndex((item) => item.id === service.id);
-                      setPlaceholderIndex(sourceIndex >= 0 ? sourceIndex : 0);
+                      const initialIndex = sourceIndex >= 0 ? sourceIndex : 0;
+                      placeholderIndexRef.current = initialIndex;
+                      setPlaceholderIndex(initialIndex);
                     }}
                   >
                     <FluentIcon icon="fluent:re-order-dots-vertical-24-regular" width={16} />
@@ -620,9 +687,9 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
                     className="service-manager-button"
                     appearance="subtle"
                     icon={<FluentIcon icon="fluent:copy-24-regular" width={16} />}
-                    onClick={() => copyShareAddress(shareUrl)}
+                    onClick={() => copyShareAddress(service.id, shareUrl)}
                   >
-                    {strings.copyShare}
+                    {copyFeedback?.serviceId === service.id ? copyFeedback.message : strings.copyShare}
                   </Button>
                 </div>
               </Card>
