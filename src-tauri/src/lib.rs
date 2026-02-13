@@ -541,6 +541,7 @@ fn refresh_tray_menu(app: &AppHandle, state: &Arc<AppState>) {
 
 fn show_main_window(app: &AppHandle) {
   if let Some(window) = ensure_main_window(app) {
+    let _ = window.center();
     let _ = window.show();
     let _ = window.unminimize();
     let _ = window.set_focus();
@@ -936,6 +937,7 @@ pub fn run() {
       Some(vec![AUTOSTART_ARG]),
     ))
     .setup(|app| {
+      let is_autostart_launch = std::env::args().any(|arg| arg == AUTOSTART_ARG);
       let (mut loaded_config, config_path) =
         config::load_or_default(app.handle()).map_err(|error| anyhow::anyhow!("{error}"))?;
 
@@ -943,8 +945,8 @@ pub fn run() {
       if let Ok(enabled) = app.autolaunch().is_enabled() {
         loaded_config.settings.launch_on_startup = enabled;
       }
-      // Product behavior: app always boots in lightweight mode.
-      loaded_config.settings.lightweight_mode = true;
+      // Autostart boots in lightweight mode; direct launches boot with visible GUI.
+      loaded_config.settings.lightweight_mode = is_autostart_launch;
       let _ = config::save_config(&config_path, &loaded_config);
 
       let notify = Arc::new(Notify::new());
@@ -1017,12 +1019,11 @@ pub fn run() {
       )
       .map_err(anyhow::Error::msg)?;
 
-      let _ = std::env::args().any(|arg| arg == AUTOSTART_ARG);
-      // Product behavior: startup should be lightweight and not flash a foreground window.
-      // Keep the preconfigured hidden window instead of force-destroying it at startup,
-      // which makes Windows WebView2 shutdown sequence more stable on dev quit.
-      if let Some(window) = app.get_webview_window("main") {
-        let _ = window.hide();
+      if is_autostart_launch {
+        // Autostart should run without a resident WebView/WebView2 process.
+        destroy_main_window(app.handle());
+      } else {
+        show_main_window(app.handle());
       }
 
       emit_snapshot(app.handle(), &state.0);

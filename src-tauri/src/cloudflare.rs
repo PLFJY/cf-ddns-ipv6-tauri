@@ -31,7 +31,7 @@ pub struct DnsRecordSummary {
 
 fn cloudflare_client() -> Result<reqwest::Client> {
   reqwest::Client::builder()
-    .user_agent("cf-ddns-ipv6-tauri/0.1.5")
+    .user_agent("cf-ddns-ipv6-tauri/0.1.6")
     .build()
     .context("failed to create Cloudflare HTTP client")
 }
