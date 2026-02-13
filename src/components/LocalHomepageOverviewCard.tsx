@@ -2,6 +2,7 @@ import { Badge, Button, Card, Text, Title3, makeStyles } from "@fluentui/react-c
 import { useState } from "react";
 import type { UiStrings } from "../i18n";
 import type { AppSnapshot } from "../types";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { FluentIcon } from "./FluentIcon";
 
 interface LocalHomepageOverviewCardProps {
@@ -27,11 +28,11 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
 
   async function copyHomepageUrl() {
-    try {
-      await navigator.clipboard.writeText(snapshot.localHomepage.webUrl);
+    const copied = await copyTextToClipboard(snapshot.localHomepage.webUrl);
+    if (copied) {
       setCopyMessage(strings.copied);
       setTimeout(() => setCopyMessage(null), 1200);
-    } catch {
+    } else {
       setCopyMessage(strings.copyFailed);
       setTimeout(() => setCopyMessage(null), 1200);
     }
@@ -43,11 +44,11 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
       return;
     }
     const ipv6Url = `http://[${ipv6}]:${snapshot.localHomepage.webPort}/index.html`;
-    try {
-      await navigator.clipboard.writeText(ipv6Url);
+    const copied = await copyTextToClipboard(ipv6Url);
+    if (copied) {
       setCopyMessage(strings.copied);
       setTimeout(() => setCopyMessage(null), 1200);
-    } catch {
+    } else {
       setCopyMessage(strings.copyFailed);
       setTimeout(() => setCopyMessage(null), 1200);
     }

@@ -21,6 +21,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { UiStrings } from "../i18n";
 import { findPreset, SERVICE_PRESETS } from "../servicePresets";
 import type { AppSettings, AppSnapshot, ServiceModel, ServiceRuntimeModel } from "../types";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { FluentIcon } from "./FluentIcon";
 
 interface ServiceManagerCardProps {
@@ -393,11 +394,11 @@ export function ServiceManagerCard(props: ServiceManagerCardProps) {
   }
 
   async function copyShareAddress(shareUrl: string) {
-    try {
-      await navigator.clipboard.writeText(shareUrl);
+    const copied = await copyTextToClipboard(shareUrl);
+    if (copied) {
       setCopyMessage(strings.copied);
       setTimeout(() => setCopyMessage(null), 1500);
-    } catch {
+    } else {
       setCopyMessage(strings.copyFailed);
       setTimeout(() => setCopyMessage(null), 1500);
     }

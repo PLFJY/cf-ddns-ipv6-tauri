@@ -1,6 +1,7 @@
 import { Badge, Button, Card, FluentProvider, Select, Spinner, Text, Title2, makeStyles, webDarkTheme, webLightTheme } from "@fluentui/react-components";
 import { useEffect, useMemo, useState } from "react";
 import { FluentIcon } from "./components/FluentIcon";
+import { copyTextToClipboard } from "./utils/clipboard";
 
 interface ServiceRuntimeModel {
   id: string;
@@ -188,11 +189,11 @@ export default function HomepageApp() {
   }, [snapshot]);
 
   async function copyAddress(id: string, text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
+    const copied = await copyTextToClipboard(text);
+    if (copied) {
       setCopiedId(id);
       setTimeout(() => setCopiedId(null), 1200);
-    } catch {
+    } else {
       setCopiedId(null);
     }
   }

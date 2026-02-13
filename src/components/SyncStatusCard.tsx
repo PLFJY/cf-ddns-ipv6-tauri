@@ -2,6 +2,7 @@ import { Badge, Button, Card, Text, Title3 } from "@fluentui/react-components";
 import { useState } from "react";
 import type { UiStrings } from "../i18n";
 import type { AppSnapshot, SyncStatusKind } from "../types";
+import { copyTextToClipboard } from "../utils/clipboard";
 import { FluentIcon } from "./FluentIcon";
 
 interface SyncStatusCardProps {
@@ -56,11 +57,11 @@ export function SyncStatusCard(props: SyncStatusCardProps) {
     if (!ipv6) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(ipv6);
+    const copied = await copyTextToClipboard(ipv6);
+    if (copied) {
       setCopyMessage(strings.copied);
       setTimeout(() => setCopyMessage(null), 1200);
-    } catch {
+    } else {
       setCopyMessage(strings.copyFailed);
       setTimeout(() => setCopyMessage(null), 1200);
     }
