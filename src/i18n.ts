@@ -23,6 +23,12 @@ export interface UiStrings {
     launchOnStartupLabel: string;
     localHomepagePortLabel: string;
     localHomepagePortHint: string;
+    savePort: string;
+    savingPort: string;
+    restartDialogTitle: string;
+    restartDialogContent: string;
+    restartNow: string;
+    restartLater: string;
     enabled: string;
     disabled: string;
     themeLabel: string;
@@ -37,6 +43,9 @@ export interface UiStrings {
   status: {
     title: string;
     currentIpv6: string;
+    copyIpv6: string;
+    copied: string;
+    copyFailed: string;
     carrier: string;
     notFound: string;
     lastIpv6Change: string;
@@ -90,6 +99,7 @@ export interface UiStrings {
     homepageUrl: string;
     webPort: string;
     copyUrl: string;
+    copyIpv6Url: string;
     copied: string;
     copyFailed: string;
     webServiceStatus: string;
@@ -149,6 +159,12 @@ const EN_STRINGS: UiStrings = {
     launchOnStartupLabel: "Launch on startup",
     localHomepagePortLabel: "Local homepage port",
     localHomepagePortHint: "Valid range: 1-65535",
+    savePort: "Save port",
+    savingPort: "Saving...",
+    restartDialogTitle: "Restart required",
+    restartDialogContent: "Port updated. Restart now to apply changes?",
+    restartNow: "Restart now",
+    restartLater: "Later",
     enabled: "Enabled",
     disabled: "Disabled",
     themeLabel: "Theme",
@@ -163,6 +179,9 @@ const EN_STRINGS: UiStrings = {
   status: {
     title: "IPv6 & Sync Status",
     currentIpv6: "Current IPv6",
+    copyIpv6: "Copy",
+    copied: "Copied",
+    copyFailed: "Copy failed",
     carrier: "Carrier",
     notFound: "Not found",
     lastIpv6Change: "Last IPv6 change",
@@ -216,6 +235,7 @@ const EN_STRINGS: UiStrings = {
     homepageUrl: "Homepage URL",
     webPort: "Web port",
     copyUrl: "Copy URL",
+    copyIpv6Url: "Copy IPv6 URL",
     copied: "Copied",
     copyFailed: "Copy failed",
     webServiceStatus: "Web service status",
@@ -275,6 +295,12 @@ const ZH_CN_STRINGS: UiStrings = {
     launchOnStartupLabel: "开机启动",
     localHomepagePortLabel: "本机主页端口",
     localHomepagePortHint: "有效范围：1-65535",
+    savePort: "保存端口",
+    savingPort: "保存中...",
+    restartDialogTitle: "需要重启",
+    restartDialogContent: "端口已更新，是否立即重启以生效？",
+    restartNow: "立即重启",
+    restartLater: "稍后",
     enabled: "启用",
     disabled: "禁用",
     themeLabel: "主题",
@@ -289,6 +315,9 @@ const ZH_CN_STRINGS: UiStrings = {
   status: {
     title: "IPv6 与同步状态",
     currentIpv6: "当前 IPv6",
+    copyIpv6: "复制",
+    copied: "已复制",
+    copyFailed: "复制失败",
     carrier: "运营商",
     notFound: "未检测到",
     lastIpv6Change: "上次 IPv6 变化",
@@ -342,6 +371,7 @@ const ZH_CN_STRINGS: UiStrings = {
     homepageUrl: "主页访问地址",
     webPort: "主页端口",
     copyUrl: "复制地址",
+    copyIpv6Url: "复制 IPv6 地址",
     copied: "已复制",
     copyFailed: "复制失败",
     webServiceStatus: "Web 服务状态",

@@ -37,6 +37,22 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
     }
   }
 
+  async function copyIpv6Url() {
+    const ipv6 = snapshot.currentIpv6?.trim();
+    if (!ipv6) {
+      return;
+    }
+    const ipv6Url = `http://[${ipv6}]:${snapshot.localHomepage.webPort}/index.html`;
+    try {
+      await navigator.clipboard.writeText(ipv6Url);
+      setCopyMessage(strings.copied);
+      setTimeout(() => setCopyMessage(null), 1200);
+    } catch {
+      setCopyMessage(strings.copyFailed);
+      setTimeout(() => setCopyMessage(null), 1200);
+    }
+  }
+
   return (
     <Card className={panelClassName}>
       <Title3>
@@ -60,6 +76,15 @@ export function LocalHomepageOverviewCard(props: LocalHomepageOverviewCardProps)
           onClick={copyHomepageUrl}
         >
           {copyMessage ?? strings.copyUrl}
+        </Button>
+        <Button
+          size="small"
+          appearance="secondary"
+          icon={<FluentIcon icon="fluent:plug-connected-24-regular" width={14} />}
+          onClick={copyIpv6Url}
+          disabled={!snapshot.currentIpv6}
+        >
+          {strings.copyIpv6Url}
         </Button>
       </div>
       <div className={rowClassName}>

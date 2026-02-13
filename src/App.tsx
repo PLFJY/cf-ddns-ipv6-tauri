@@ -137,6 +137,7 @@ export default function App() {
   const [isReplacingToken, setIsReplacingToken] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSavingCloudflare, setIsSavingCloudflare] = useState(false);
+  const [isSavingPort, setIsSavingPort] = useState(false);
   const [isPushing, setIsPushing] = useState(false);
   const [isLookingUpRecord, setIsLookingUpRecord] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -290,6 +291,36 @@ export default function App() {
     }
   }
 
+  async function onSaveLocalHomepagePort(port: number): Promise<boolean> {
+    if (!draft) {
+      return false;
+    }
+    const nextDraft: AppSettings = {
+      ...draft,
+      localHomepage: {
+        ...draft.localHomepage,
+        webPort: port
+      }
+    };
+    setIsSavingPort(true);
+    setError(null);
+    try {
+      const result = await saveSettings({
+        settings: nextDraft,
+        apiToken: null,
+        clearToken: false
+      });
+      setSnapshot(result);
+      setDraft(normalizeDraft(result));
+      return true;
+    } catch (err) {
+      setError(String(err));
+      return false;
+    } finally {
+      setIsSavingPort(false);
+    }
+  }
+
   async function onManualPush() {
     setIsPushing(true);
     setError(null);
@@ -425,6 +456,8 @@ export default function App() {
                       <RuntimePreferencesCard
                         draft={draft}
                         updateDraft={(updater) => updateDraft(updater, { autoSave: true })}
+                        onSavePort={onSaveLocalHomepagePort}
+                        isSavingPort={isSavingPort}
                         panelClassName={styles.panel}
                         strings={strings.runtime}
                       />

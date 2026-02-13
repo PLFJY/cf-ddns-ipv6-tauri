@@ -1,5 +1,19 @@
-import { Card, Field, Input, Select, Title3 } from "@fluentui/react-components";
+import {
+  Button,
+  Card,
+  Dialog,
+  DialogActions,
+  DialogBody,
+  DialogContent,
+  DialogSurface,
+  DialogTitle,
+  Field,
+  Input,
+  Select,
+  Title3
+} from "@fluentui/react-components";
 import { useEffect, useState } from "react";
+import { restartApp } from "../api";
 import type { UiStrings } from "../i18n";
 import type { AppSettings, LanguageMode } from "../types";
 import { FluentIcon } from "./FluentIcon";
@@ -7,34 +21,47 @@ import { FluentIcon } from "./FluentIcon";
 interface RuntimePreferencesCardProps {
   draft: AppSettings;
   updateDraft: (updater: (prev: AppSettings) => AppSettings) => void;
+  onSavePort: (port: number) => Promise<boolean>;
+  isSavingPort: boolean;
   panelClassName: string;
   strings: UiStrings["runtime"];
 }
 
 export function RuntimePreferencesCard(props: RuntimePreferencesCardProps) {
-  const { draft, updateDraft, panelClassName, strings } = props;
+  const { draft, updateDraft, onSavePort, isSavingPort, panelClassName, strings } = props;
   const [portInput, setPortInput] = useState(String(draft.localHomepage.webPort));
+  const [restartDialogOpen, setRestartDialogOpen] = useState(false);
 
   useEffect(() => {
     setPortInput(String(draft.localHomepage.webPort));
   }, [draft.localHomepage.webPort]);
 
-  function commitPort(value: string) {
+  function parsePort(value: string): number | null {
     const parsed = Number.parseInt(value.trim(), 10);
     if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
-      return false;
+      return null;
+    }
+    return parsed;
+  }
+
+  async function savePortAndPromptRestart() {
+    const parsed = parsePort(portInput);
+    if (parsed == null) {
+      setPortInput(String(draft.localHomepage.webPort));
+      return;
     }
     if (parsed === draft.localHomepage.webPort) {
-      return true;
+      setRestartDialogOpen(true);
+      return;
     }
-    updateDraft((prev) => ({
-      ...prev,
-      localHomepage: {
-        ...prev.localHomepage,
-        webPort: parsed
-      }
-    }));
-    return true;
+    const saved = await onSavePort(parsed);
+    if (saved) {
+      setRestartDialogOpen(true);
+    }
+  }
+
+  function restartNow() {
+    void restartApp();
   }
 
   return (
@@ -65,19 +92,28 @@ export function RuntimePreferencesCard(props: RuntimePreferencesCardProps) {
         </Select>
       </Field>
       <Field label={strings.localHomepagePortLabel} hint={strings.localHomepagePortHint}>
-        <Input
-          type="number"
-          value={portInput}
-          onChange={(_, data) => {
-            setPortInput(data.value);
-            void commitPort(data.value);
-          }}
-          onBlur={() => {
-            if (!commitPort(portInput)) {
-              setPortInput(String(draft.localHomepage.webPort));
-            }
-          }}
-        />
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <Input
+            type="number"
+            value={portInput}
+            onChange={(_, data) => {
+              setPortInput(data.value);
+            }}
+            onBlur={() => {
+              const parsed = parsePort(portInput);
+              if (parsed == null) {
+                setPortInput(String(draft.localHomepage.webPort));
+              }
+            }}
+          />
+          <Button
+            appearance="primary"
+            onClick={() => void savePortAndPromptRestart()}
+            disabled={isSavingPort}
+          >
+            {isSavingPort ? strings.savingPort : strings.savePort}
+          </Button>
+        </div>
       </Field>
       <Field label={strings.themeLabel}>
         <Select
@@ -119,6 +155,22 @@ export function RuntimePreferencesCard(props: RuntimePreferencesCardProps) {
           <option value="en">{strings.languageEn}</option>
         </Select>
       </Field>
+      <Dialog open={restartDialogOpen} onOpenChange={(_, data) => setRestartDialogOpen(data.open)}>
+        <DialogSurface className="service-manager-dialog">
+          <DialogBody>
+            <DialogTitle>{strings.restartDialogTitle}</DialogTitle>
+            <DialogContent>{strings.restartDialogContent}</DialogContent>
+            <DialogActions>
+              <Button appearance="secondary" onClick={() => setRestartDialogOpen(false)}>
+                {strings.restartLater}
+              </Button>
+              <Button appearance="primary" onClick={restartNow}>
+                {strings.restartNow}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
     </Card>
   );
 }

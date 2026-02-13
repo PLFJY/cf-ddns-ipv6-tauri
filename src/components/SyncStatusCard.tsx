@@ -1,4 +1,5 @@
 import { Badge, Button, Card, Text, Title3 } from "@fluentui/react-components";
+import { useState } from "react";
 import type { UiStrings } from "../i18n";
 import type { AppSnapshot, SyncStatusKind } from "../types";
 import { FluentIcon } from "./FluentIcon";
@@ -32,6 +33,7 @@ function statusTone(status: SyncStatusKind): "brand" | "danger" | "informative" 
 
 export function SyncStatusCard(props: SyncStatusCardProps) {
   const { snapshot, isPushing, onManualPush, panelClassName, rowClassName, strings } = props;
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const carrierText = (() => {
     const geo = snapshot.currentIpv6Geo;
     if (!geo) {
@@ -49,14 +51,40 @@ export function SyncStatusCard(props: SyncStatusCardProps) {
   const countryCode = snapshot.currentIpv6Geo?.countryIsoCode?.toLowerCase() ?? null;
   const countryIcon = countryCode ? `circle-flags:${countryCode}` : "fluent:flag-24-regular";
 
+  async function copyIpv6Address() {
+    const ipv6 = snapshot.currentIpv6?.trim();
+    if (!ipv6) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(ipv6);
+      setCopyMessage(strings.copied);
+      setTimeout(() => setCopyMessage(null), 1200);
+    } catch {
+      setCopyMessage(strings.copyFailed);
+      setTimeout(() => setCopyMessage(null), 1200);
+    }
+  }
+
   return (
     <Card className={panelClassName}>
       <Title3>
         <FluentIcon icon="fluent:pulse-24-regular" width={20} /> {strings.title}
       </Title3>
-      <Text>
-        {strings.currentIpv6}: <strong>{snapshot.currentIpv6 ?? strings.notFound}</strong>
-      </Text>
+      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        <Text>
+          {strings.currentIpv6}: <strong>{snapshot.currentIpv6 ?? strings.notFound}</strong>
+        </Text>
+        <Button
+          size="small"
+          appearance="secondary"
+          icon={<FluentIcon icon="fluent:copy-24-regular" width={14} />}
+          onClick={copyIpv6Address}
+          disabled={!snapshot.currentIpv6}
+        >
+          {copyMessage ?? strings.copyIpv6}
+        </Button>
+      </div>
       <Text>
         {strings.carrier}:{" "}
         <strong style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>

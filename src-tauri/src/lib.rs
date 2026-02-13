@@ -44,7 +44,6 @@ use tokio::time::Duration;
 const SNAPSHOT_EVENT: &str = "ddns://snapshot";
 const NETWORK_CHANGED_EVENT: &str = "ddns://network-changed";
 const AUTOSTART_ARG: &str = "--autostart";
-const LOCAL_HOMEPAGE_FALLBACK_PORT: u16 = 8081;
 const HOMEPAGE_FALLBACK_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Local Host Homepage</title></head><body style="font-family:Segoe UI,Arial,sans-serif;padding:24px"><h2>Local Host Homepage</h2><p>Homepage assets are not available yet.</p><p>Build frontend assets with <code>pnpm build</code> and restart the app.</p></body></html>"#;
 
 #[derive(Clone)]
@@ -347,6 +346,11 @@ fn enter_lightweight_mode(app: AppHandle, state: tauri::State<'_, SharedState>) 
   refresh_tray_menu(&app, &state.inner().0);
   emit_snapshot(&app, &state.inner().0);
   Ok(state.inner().0.snapshot())
+}
+
+#[tauri::command]
+fn restart_app(app: AppHandle) {
+  app.restart();
 }
 
 fn request_to_config(request: SaveSettingsRequest) -> AppConfig {
@@ -813,44 +817,24 @@ fn spawn_local_homepage_server(app: AppHandle, state: SharedState) {
       let config = state_for_server.0.config.lock();
       let configured = config.settings.local_homepage.web_port;
       if configured == 0 {
-        8080
+        8089
       } else {
         configured
       }
     };
 
     let primary_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), configured_port);
-    let (listener, bound_port) = match tokio::net::TcpListener::bind(primary_address).await {
-      Ok(listener) => (listener, configured_port),
+    let listener = match tokio::net::TcpListener::bind(primary_address).await {
+      Ok(listener) => listener,
       Err(primary_error) => {
-        // Prefer port 80 for bare-host access. If unavailable, fallback to a high port.
-        if configured_port != LOCAL_HOMEPAGE_FALLBACK_PORT {
-          let fallback_address = SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), LOCAL_HOMEPAGE_FALLBACK_PORT);
-          match tokio::net::TcpListener::bind(fallback_address).await {
-            Ok(listener) => (listener, LOCAL_HOMEPAGE_FALLBACK_PORT),
-            Err(fallback_error) => {
-              state_for_server.0.homepage_running.store(false, Ordering::SeqCst);
-              state_for_server.0.homepage_bound_port.store(0, Ordering::SeqCst);
-              eprintln!(
-                "local homepage server failed to bind on {} ({}) and fallback {} ({})",
-                primary_address,
-                primary_error,
-                fallback_address,
-                fallback_error
-              );
-              emit_snapshot(&app, &state_for_server.0);
-              return;
-            }
-          }
-        } else {
-          state_for_server.0.homepage_running.store(false, Ordering::SeqCst);
-          state_for_server.0.homepage_bound_port.store(0, Ordering::SeqCst);
-          eprintln!("local homepage server failed to bind on {primary_address}: {primary_error}");
-          emit_snapshot(&app, &state_for_server.0);
-          return;
-        }
+        state_for_server.0.homepage_running.store(false, Ordering::SeqCst);
+        state_for_server.0.homepage_bound_port.store(0, Ordering::SeqCst);
+        eprintln!("local homepage server failed to bind on {primary_address}: {primary_error}");
+        emit_snapshot(&app, &state_for_server.0);
+        return;
       }
     };
+    let bound_port = configured_port;
 
     state_for_server.0.homepage_running.store(true, Ordering::SeqCst);
     state_for_server.0.homepage_bound_port.store(bound_port, Ordering::SeqCst);
@@ -1053,7 +1037,8 @@ pub fn run() {
       save_settings,
       manual_push_now,
       lookup_record_id,
-      enter_lightweight_mode
+      enter_lightweight_mode,
+      restart_app
     ])
     .on_window_event(|window, event| {
       if let WindowEvent::CloseRequested { api, .. } = event {

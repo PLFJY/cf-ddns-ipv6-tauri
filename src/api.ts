@@ -21,6 +21,10 @@ export async function lookupRecordId(request: LookupRecordIdRequest): Promise<Ap
   return invoke<AppSnapshot>("lookup_record_id", { request });
 }
 
+export async function restartApp(): Promise<void> {
+  return invoke<void>("restart_app");
+}
+
 export async function subscribeSnapshot(
   onSnapshot: (snapshot: AppSnapshot) => void
 ): Promise<() => void> {
